@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AlphaPulse 拐点监控</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="主导航">
+        <div class="brand">
+          <div class="brand-mark">A</div>
+          <div>
+            <strong>AlphaPulse</strong>
+            <span>拐点监控台</span>
+          </div>
+        </div>
+
+        <nav class="nav-list">
+          <button class="nav-item is-active" type="button" title="监控面板">
+            <span>⌁</span>
+            <span>监控面板</span>
+          </button>
+          <button class="nav-item" type="button" title="信号队列">
+            <span>◆</span>
+            <span>信号队列</span>
+          </button>
+          <button class="nav-item" type="button" title="标的池">
+            <span>◎</span>
+            <span>标的池</span>
+          </button>
+          <button class="nav-item" type="button" title="策略配置">
+            <span>⚙</span>
+            <span>策略配置</span>
+          </button>
+        </nav>
+
+        <section class="sidebar-panel">
+          <span class="panel-label">核心逻辑</span>
+          <strong>资金先动，财报确认</strong>
+          <p>爆发不是单点信号，而是资金、产业、财报、情绪的连续接力。</p>
+        </section>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">高潜力标的爆发拐点监控</p>
+            <h1>按爆发链路追踪资金、产业、财报与情绪的接力</h1>
+          </div>
+          <div class="topbar-actions">
+            <span class="api-status" id="apiStatus">本地样例数据</span>
+            <button class="icon-button" type="button" id="refreshButton" title="刷新监控">↻</button>
+            <button class="primary-button" type="button" id="addWatchButton">添加标的</button>
+          </div>
+        </header>
+
+        <section class="metrics-grid" aria-label="核心指标">
+          <article class="metric">
+            <span>监控标的</span>
+            <strong id="metricTotal">0</strong>
+            <small>覆盖 A 股、港股、美股、Crypto</small>
+          </article>
+          <article class="metric">
+            <span>爆发概率均值</span>
+            <strong id="metricScore">0%</strong>
+            <small>资金 35% · 产业 25% · 财报 25% · 情绪 15%</small>
+          </article>
+          <article class="metric alert">
+            <span>戴维斯候选</span>
+            <strong id="metricAlerts">0</strong>
+            <small>资金、产业、财报同时确认</small>
+          </article>
+          <article class="metric">
+            <span>资金先动</span>
+            <strong id="metricFlow">0</strong>
+            <small>LEAP、OI、暗池、Gamma、大单、ETF</small>
+          </article>
+        </section>
+
+        <section class="control-strip">
+          <label class="search-box">
+            <span>⌕</span>
+            <input id="searchInput" type="search" placeholder="搜索代码、名称、赛道或判断" />
+          </label>
+          <div class="segmented" aria-label="阶段筛选">
+            <button class="segment is-active" type="button" data-filter="all">全部</button>
+            <button class="segment" type="button" data-filter="critical">强提醒</button>
+            <button class="segment" type="button" data-filter="capital">资金先动</button>
+            <button class="segment" type="button" data-filter="industry">产业强化</button>
+            <button class="segment" type="button" data-filter="earnings">财报验证</button>
+            <button class="segment" type="button" data-filter="sentiment">情绪扩散</button>
+          </div>
+          <label class="toggle">
+            <input type="checkbox" id="onlyCatalyst" />
+            <span>只看财报验证</span>
+          </label>
+        </section>
+
+        <section class="logic-region">
+          <div class="section-head">
+            <div>
+              <h2>爆发链路模型</h2>
+              <p>真正的主升浪通常不是从财报开始，而是资金提前下注，随后产业逻辑和财报验证接力。</p>
+            </div>
+          </div>
+          <div class="logic-lane" id="modelLane"></div>
+        </section>
+
+        <section class="architecture-grid">
+          <article class="architecture-card">
+            <span class="panel-label">第一层</span>
+            <strong>实时监控层</strong>
+            <p>接入期权、财报、行业景气度、舆情热度，把原始噪音压缩成可复核信号。</p>
+          </article>
+          <article class="architecture-card">
+            <span class="panel-label">第二层</span>
+            <strong>AI 评分系统</strong>
+            <p>不是展示数据，而是输出结论：爆发评分、当前阶段、证据链和风险缺口。</p>
+          </article>
+          <article class="architecture-card">
+            <span class="panel-label">第三层</span>
+            <strong>爆发信号引擎</strong>
+            <p>当资金、产业、财报、情绪共振，自动生成高概率爆发信号并推送。</p>
+          </article>
+        </section>
+
+        <section class="source-region">
+          <div class="section-head">
+            <div>
+              <h2>推荐数据源矩阵</h2>
+              <p>先把高质量源接稳，再让 AI 做筛选、归因和评分。</p>
+            </div>
+          </div>
+          <div class="source-grid" id="sourceGrid"></div>
+        </section>
+
+        <section class="realtime-region">
+          <div class="section-head">
+            <div>
+              <h2>实时监控层</h2>
+              <p>每个模块先做 AI 筛选，只保留可能领先基本面的信号。</p>
+            </div>
+          </div>
+          <div class="module-grid" id="moduleGrid"></div>
+        </section>
+
+        <section class="score-region">
+          <div class="section-head">
+            <div>
+              <h2>AI 评分系统</h2>
+              <p>把监控结果变成可执行判断：爆发评分、阶段、AI 结论、关键证据。</p>
+            </div>
+          </div>
+          <div class="score-board" id="scoreBoard"></div>
+        </section>
+
+        <section class="content-grid">
+          <div class="table-region">
+            <div class="section-head">
+              <div>
+                <h2>标的监控池</h2>
+                <p>每个标的都按四段链路拆分，优先找“资金先动 + 财报开始验证”的交叉点。</p>
+              </div>
+              <button class="ghost-button" type="button" id="exportButton">导出观察清单</button>
+            </div>
+            <div class="watch-table" id="watchTable" aria-live="polite"></div>
+          </div>
+
+          <aside class="insight-panel">
+            <div class="section-head compact">
+              <h2>拐点雷达</h2>
+              <span id="radarTime">刚刚更新</span>
+            </div>
+            <div class="radar" aria-hidden="true">
+              <div class="radar-ring ring-one"></div>
+              <div class="radar-ring ring-two"></div>
+              <div class="radar-sweep"></div>
+              <button class="radar-dot dot-one" type="button" data-symbol="NVDA"></button>
+              <button class="radar-dot dot-two" type="button" data-symbol="寒武纪"></button>
+              <button class="radar-dot dot-three" type="button" data-symbol="BTC"></button>
+            </div>
+            <div class="signal-feed" id="signalFeed"></div>
+            <div class="selected-asset" id="selectedAsset"></div>
+          </aside>
+        </section>
+
+        <section class="engine-region">
+          <div class="section-head">
+            <div>
+              <h2>爆发信号引擎</h2>
+              <p>高价值输出不是更多图表，而是“现在是否值得行动”的自动判断。</p>
+            </div>
+            <button class="ghost-button" type="button" id="simulateSignalButton">模拟触发</button>
+          </div>
+          <div class="engine-grid">
+            <div class="trigger-stack" id="triggerStack"></div>
+            <div class="push-panel">
+              <h3>推送通道</h3>
+              <div class="push-list" id="pushList"></div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog class="watch-dialog" id="watchDialog">
+      <form method="dialog" class="dialog-body" id="watchForm">
+        <div class="section-head compact">
+          <h2>添加监控标的</h2>
+          <button class="icon-button small" value="cancel" type="submit" title="关闭">×</button>
+        </div>
+        <label>
+          <span>代码 / 名称</span>
+          <input name="symbol" required placeholder="例如 TSLA" />
+        </label>
+        <label>
+          <span>赛道</span>
+          <input name="theme" required placeholder="例如 AI 算力" />
+        </label>
+        <label>
+          <span>爆发概率</span>
+          <input name="score" type="number" min="1" max="99" value="72" required />
+        </label>
+        <button class="primary-button" value="default" type="submit">加入监控</button>
+      </form>
+    </dialog>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
