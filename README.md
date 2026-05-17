@@ -79,3 +79,5 @@ CoinGlass、Arkham、DefiLlama、Glassnode。
 ```
 
 配置 `FMP_API_KEY` 后可读取 FinancialModelingPrep 的报价、公司名称、行业和成交量；配置 `POLYGON_API_KEY` 后可补充 Polygon 前收盘与成交量数据。
+
+上线后，搜索栏也可以作为评分入口：输入任意美股代码并按 Enter，前端会请求 `/api/stocks?symbols=代码`，拿到数据后按爆发链路模型计算总分并写入监控池。

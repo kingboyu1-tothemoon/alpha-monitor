@@ -455,7 +455,8 @@ function renderMetrics(list) {
 
 function renderTable(list) {
   if (!list.length) {
-    elements.table.innerHTML = '<div class="table-row empty-row">没有匹配的标的，调整筛选条件再看。</div>';
+    elements.table.innerHTML =
+      '<div class="table-row empty-row">没有匹配的标的。输入美股代码后按 Enter，可在线拉取数据并按爆发链路评分。</div>';
     return;
   }
 
@@ -592,6 +593,60 @@ function toFrontendAsset(asset) {
   };
 }
 
+function isLikelyTicker(value) {
+  return /^[A-Z][A-Z0-9.-]{0,9}$/.test(value.trim().toUpperCase());
+}
+
+function upsertAsset(asset) {
+  const normalized = toFrontendAsset(asset);
+  const index = watchlist.findIndex((item) => item.symbol === normalized.symbol);
+
+  if (index >= 0) {
+    watchlist.splice(index, 1, normalized);
+  } else {
+    watchlist.unshift(normalized);
+  }
+
+  selectedSymbol = normalized.symbol;
+  elements.search.value = normalized.symbol;
+}
+
+async function scoreTickerFromSearch() {
+  const symbol = elements.search.value.trim().toUpperCase();
+  if (!isLikelyTicker(symbol)) {
+    elements.apiStatus.textContent = "请输入美股代码";
+    return;
+  }
+
+  if (window.location.protocol === "file:") {
+    elements.apiStatus.textContent = "部署线上后可评分";
+    return;
+  }
+
+  try {
+    elements.apiStatus.textContent = `评分 ${symbol}...`;
+    const response = await fetch(`/api/stocks?symbols=${encodeURIComponent(symbol)}`, {
+      headers: { Accept: "application/json" },
+    });
+
+    if (!response.ok) throw new Error("Stock API unavailable");
+
+    const payload = await response.json();
+    const asset = payload.assets?.[0];
+
+    if (!asset) {
+      elements.apiStatus.textContent = `${symbol} 暂无数据`;
+      return;
+    }
+
+    upsertAsset(asset);
+    elements.apiStatus.textContent = `${symbol} 已评分 · ${asset.score}%`;
+    render();
+  } catch {
+    elements.apiStatus.textContent = `${symbol} 评分失败`;
+  }
+}
+
 async function loadOnlineSnapshot() {
   if (window.location.protocol === "file:") {
     elements.apiStatus.textContent = "本地样例数据";
@@ -619,6 +674,12 @@ async function loadOnlineSnapshot() {
 }
 
 elements.search.addEventListener("input", render);
+elements.search.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    scoreTickerFromSearch();
+  }
+});
 elements.onlyCatalyst.addEventListener("change", render);
 
 elements.segments.forEach((button) => {
