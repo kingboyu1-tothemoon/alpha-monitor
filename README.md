@@ -32,6 +32,9 @@
 
 - FinancialModelingPrep
 - Polygon
+- Stooq 免 key 延迟行情兜底
+
+如果没有配置 `FMP_API_KEY` 或 `POLYGON_API_KEY`，系统会尝试用 Stooq 获取真实延迟行情。为了更稳定地覆盖所有美股标的，仍建议配置 FinancialModelingPrep 或 Polygon。
 
 ## 下一步
 

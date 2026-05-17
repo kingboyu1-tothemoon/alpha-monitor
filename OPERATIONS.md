@@ -61,7 +61,7 @@ TSLA
 /api/stocks?symbols=NVDA
 ```
 
-当前第一版只计算资金评分。已接入报价、涨跌幅、成交量、公司名称、行业信息。期权 OI、LEAP Call、暗池、Sweep Order 还在后续接入队列里，所以目前评分是“资金行情初筛分”。
+当前第一版只计算资金评分。已接入报价、涨跌幅、成交量、公司名称、行业信息。没有 API key 时会使用 Stooq 作为真实延迟行情兜底；配置 FinancialModelingPrep / Polygon 后覆盖会更稳定。期权 OI、LEAP Call、暗池、Sweep Order 还在后续接入队列里，所以目前评分是“资金行情初筛分”。
 
 ## 第三阶段：加数据库
 

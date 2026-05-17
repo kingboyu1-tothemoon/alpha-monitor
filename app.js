@@ -120,7 +120,8 @@ function renderSelectedAsset() {
   elements.capitalScore.textContent = `${score}`;
   elements.relativeVolume.textContent = formatRelativeVolume(market.relativeVolume);
   elements.priceChange.textContent = formatPercent(market.changePercent);
-  elements.lastPrice.textContent = formatPrice(market.price);
+  const sourceText = market.sources?.length ? market.sources.join(" / ") : "数据源待接入";
+  elements.lastPrice.textContent = `${formatPrice(market.price)} · ${sourceText}${market.delayed ? " · 延迟" : ""}`;
   elements.capitalThesis.textContent = asset.thesis;
   elements.capitalStatus.textContent = getCapitalStatus(score);
   elements.capitalScoreBar.style.width = `${Math.max(0, Math.min(100, score))}%`;
@@ -194,7 +195,9 @@ async function scoreTicker() {
     const asset = payload.assets?.[0];
 
     if (!asset) {
-      elements.apiStatus.textContent = `${symbol} 暂无资金数据`;
+      const missingKeys = payload.missingApiKeys || {};
+      const keyHint = missingKeys.FMP_API_KEY && missingKeys.POLYGON_API_KEY ? "，可配置 FMP/Polygon 提升覆盖" : "";
+      elements.apiStatus.textContent = `${symbol} 暂无真实行情${keyHint}`;
       return;
     }
 

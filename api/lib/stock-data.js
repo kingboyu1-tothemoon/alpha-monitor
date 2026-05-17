@@ -2,6 +2,7 @@ const {
   getFinancialModelingPrepProfile,
   getFinancialModelingPrepQuote,
   getPolygonQuote,
+  getStooqQuote,
 } = require("./providers");
 
 const DEFAULT_SYMBOLS = ["MRVL", "VST", "CRCL", "NVDA", "TSLA"];
@@ -49,19 +50,66 @@ function normalizePolygonPreviousClose(payload) {
   };
 }
 
+function parseCsvLine(line) {
+  const values = [];
+  let current = "";
+  let insideQuotes = false;
+
+  for (const char of line) {
+    if (char === '"') {
+      insideQuotes = !insideQuotes;
+    } else if (char === "," && !insideQuotes) {
+      values.push(current);
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+
+  values.push(current);
+  return values;
+}
+
+function normalizeStooqQuote(payload) {
+  if (!payload) return null;
+  const lines = String(payload).trim().split(/\r?\n/);
+  if (lines.length < 2) return null;
+
+  const headers = parseCsvLine(lines[0]).map((header) => header.trim().toLowerCase());
+  const values = parseCsvLine(lines[1]);
+  const row = Object.fromEntries(headers.map((header, index) => [header, values[index]]));
+
+  if (!row.close || row.close === "N/D") return null;
+
+  const open = safeNumber(row.open);
+  const close = safeNumber(row.close);
+  const changePercent = open > 0 ? ((close - open) / open) * 100 : 0;
+
+  return {
+    price: close,
+    changePercent,
+    volume: safeNumber(row.volume),
+    averageVolume: 0,
+    marketCap: 0,
+    delayed: true,
+    source: "Stooq",
+  };
+}
+
 function scoreFromQuote(quote, polygon) {
   const changePercent = safeNumber(quote?.changePercent);
   const volume = safeNumber(quote?.volume || polygon?.previousVolume);
   const averageVolume = safeNumber(quote?.averageVolume);
-  const relativeVolume = averageVolume > 0 ? volume / averageVolume : 1;
+  const relativeVolume = averageVolume > 0 ? volume / averageVolume : null;
+  const volumeBoost = relativeVolume ? Math.min(relativeVolume, 3) * 12 : volume > 0 ? 8 : 0;
 
-  const capitalScore = Math.min(96, Math.max(45, 58 + changePercent * 2.2 + Math.min(relativeVolume, 3) * 12));
+  const capitalScore = Math.min(96, Math.max(40, 56 + changePercent * 2.2 + volumeBoost));
   const sentimentScore = Math.min(92, Math.max(42, 55 + changePercent * 2.8));
 
   return {
     capital: Math.round(capitalScore),
     sentiment: Math.round(sentimentScore),
-    relativeVolume: Number(relativeVolume.toFixed(2)),
+    relativeVolume: relativeVolume ? Number(relativeVolume.toFixed(2)) : null,
   };
 }
 
@@ -80,7 +128,14 @@ function buildAssetFromStock(symbol, quote, profile, polygon) {
   const displayName = profile?.name || symbol;
   const changePercent = safeNumber(quote?.changePercent);
   const priceText = quote?.price ? `$${quote.price.toFixed(2)}` : "价格待接入";
-  const volumeText = quoteScores.relativeVolume > 1 ? `相对成交量 ${quoteScores.relativeVolume}x` : "成交量未明显放大";
+  const volumeText = quoteScores.relativeVolume
+    ? quoteScores.relativeVolume > 1
+      ? `相对成交量 ${quoteScores.relativeVolume}x`
+      : "成交量未明显放大"
+    : quote?.volume
+      ? `成交量 ${Math.round(quote.volume).toLocaleString("en-US")}`
+      : "成交量待接入";
+  const sourceText = [quote?.source, profile?.source, polygon?.source].filter(Boolean).join(" / ");
 
   return {
     symbol,
@@ -93,11 +148,12 @@ function buildAssetFromStock(symbol, quote, profile, polygon) {
       averageVolume: quote?.averageVolume || null,
       relativeVolume: quoteScores.relativeVolume,
       sources: [quote?.source, profile?.source, polygon?.source].filter(Boolean),
+      delayed: Boolean(quote?.delayed),
     },
     signals: {
       capital: {
         score: quoteScores.capital,
-        evidence: [priceText, `${changePercent.toFixed(2)}% 日内变化`, volumeText],
+        evidence: [priceText, `${changePercent.toFixed(2)}% 日内变化`, volumeText, `数据源：${sourceText || "未识别"}`],
       },
       industry: {
         score: 68,
@@ -112,7 +168,7 @@ function buildAssetFromStock(symbol, quote, profile, polygon) {
         evidence: ["等待新闻与社媒热度接入", `${changePercent.toFixed(2)}% 价格反应`],
       },
     },
-    thesis: `${displayName} 已接入股票行情。当前先用价格变化与相对成交量形成资金初筛，下一步接期权 OI、LEAP Call 和财报文本提高可靠度。`,
+    thesis: `${displayName} 已接入真实股票行情。当前先用价格变化与成交量形成资金初筛，下一步接期权 OI、LEAP Call、Sweep 和暗池数据提高可靠度。`,
   };
 }
 
@@ -124,9 +180,14 @@ async function getStockAsset(symbol) {
     getPolygonQuote(normalizedSymbol),
   ]);
 
-  const quote = quoteResult.status === "fulfilled" ? normalizeFmpQuote(quoteResult.value) : null;
+  let quote = quoteResult.status === "fulfilled" ? normalizeFmpQuote(quoteResult.value) : null;
   const profile = profileResult.status === "fulfilled" ? normalizeFmpProfile(profileResult.value) : null;
   const polygon = polygonResult.status === "fulfilled" ? normalizePolygonPreviousClose(polygonResult.value) : null;
+
+  if (!quote) {
+    const stooqResult = await Promise.allSettled([getStooqQuote(normalizedSymbol)]);
+    quote = stooqResult[0].status === "fulfilled" ? normalizeStooqQuote(stooqResult[0].value) : null;
+  }
 
   if (!quote && !profile && !polygon) return null;
   return buildAssetFromStock(normalizedSymbol, quote, profile, polygon);

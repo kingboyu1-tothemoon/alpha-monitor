@@ -14,6 +14,22 @@ async function fetchJson(url, options = {}) {
   return response.json();
 }
 
+async function fetchText(url, options = {}) {
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      Accept: "text/plain,text/csv,*/*",
+      ...(options.headers || {}),
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Provider request failed: ${response.status}`);
+  }
+
+  return response.text();
+}
+
 async function getPolygonQuote(symbol) {
   if (!process.env.POLYGON_API_KEY) return null;
   const url = `https://api.polygon.io/v2/aggs/ticker/${encodeURIComponent(symbol)}/prev?adjusted=true&apiKey=${process.env.POLYGON_API_KEY}`;
@@ -30,6 +46,12 @@ async function getFinancialModelingPrepQuote(symbol) {
   if (!process.env.FMP_API_KEY) return null;
   const url = `https://financialmodelingprep.com/api/v3/quote/${encodeURIComponent(symbol)}?apikey=${process.env.FMP_API_KEY}`;
   return fetchJson(url);
+}
+
+async function getStooqQuote(symbol) {
+  const stooqSymbol = `${String(symbol).trim().toLowerCase().replace(".", "-")}.us`;
+  const url = `https://stooq.com/q/l/?s=${encodeURIComponent(stooqSymbol)}&f=sd2t2ohlcv&h&e=csv`;
+  return fetchText(url);
 }
 
 async function getSecCompanyFacts(cik) {
@@ -53,4 +75,5 @@ module.exports = {
   getFinancialModelingPrepQuote,
   getPolygonQuote,
   getSecCompanyFacts,
+  getStooqQuote,
 };
