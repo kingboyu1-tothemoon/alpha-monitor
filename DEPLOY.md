@@ -108,6 +108,27 @@ SEC_USER_AGENT
 REFRESH_SECRET
 ```
 
+## Vercel 部署设置
+
+项目现在包含 `package.json` 和 `vercel.json`，不包含 Cron Job。
+
+Vercel 项目建议保持：
+
+```text
+Framework Preset: Other
+Build Command: npm run build
+Output Directory: .
+Install Command: 默认
+Root Directory: 仓库根目录
+```
+
+如果部署后首页打不开，优先检查：
+
+1. Vercel 的 Root Directory 是否指向包含 `index.html` 的目录。
+2. GitHub 是否已经提交并推送 `package.json` 和 `vercel.json`。
+3. Deployment Logs 里是否有 API 函数构建错误。
+4. 访问 `/api/health` 看 API 是否可用。
+
 ## 最小可上线文件
 
 必须包含：
