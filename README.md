@@ -70,3 +70,12 @@ CoinGlass、Arkham、DefiLlama、Glassnode。
 当前项目是纯静态站点，可以直接部署到 Vercel、Netlify 或 GitHub Pages。详细步骤见 `DEPLOY.md`。
 
 如果要变成真正可用的线上监控系统，优先部署到 Vercel。项目已包含 Serverless API、评分引擎、定时刷新入口和环境变量模板。运营路线见 `OPERATIONS.md`。
+
+股票数据已开始接入：
+
+```text
+/api/stocks?symbols=MRVL,VST,NVDA
+/api/monitoring?symbols=MRVL,VST,NVDA
+```
+
+配置 `FMP_API_KEY` 后可读取 FinancialModelingPrep 的报价、公司名称、行业和成交量；配置 `POLYGON_API_KEY` 后可补充 Polygon 前收盘与成交量数据。

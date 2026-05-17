@@ -96,7 +96,8 @@ alpha.yourdomain.com
 ```
 
 `/api/monitoring` 是前端默认读取的线上监控快照。  
-`/api/refresh` 已配置 Vercel Cron，每 15 分钟触发一次。
+`/api/stocks?symbols=MRVL,VST,NVDA` 会尝试读取股票数据源。  
+`/api/refresh` 是手动刷新入口，不再依赖 Vercel Cron。
 
 需要在 Vercel Environment Variables 配置：
 
@@ -104,7 +105,7 @@ alpha.yourdomain.com
 POLYGON_API_KEY
 FMP_API_KEY
 SEC_USER_AGENT
-CRON_SECRET
+REFRESH_SECRET
 ```
 
 ## 最小可上线文件

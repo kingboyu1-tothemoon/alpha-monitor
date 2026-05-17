@@ -510,6 +510,16 @@ function renderTable(list) {
 function renderSelectedAsset() {
   const item = watchlist.find((asset) => asset.symbol === selectedSymbol) ?? watchlist[0];
   const status = getStatus(item);
+  const marketData = item.marketData;
+  const marketHtml = marketData
+    ? `
+      <div class="market-strip">
+        <span>价格 <strong>${marketData.price ? `$${Number(marketData.price).toFixed(2)}` : "待接入"}</strong></span>
+        <span>涨跌 <strong>${Number(marketData.changePercent || 0).toFixed(2)}%</strong></span>
+        <span>相对量 <strong>${Number(marketData.relativeVolume || 0).toFixed(2)}x</strong></span>
+      </div>
+    `
+    : "";
 
   elements.selectedAsset.innerHTML = `
     <div class="detail-head">
@@ -520,6 +530,7 @@ function renderSelectedAsset() {
       </div>
       <span class="pill ${status}">${statusText[status]}</span>
     </div>
+    ${marketHtml}
     <p class="detail-thesis">${item.thesis}</p>
     <div class="evidence-list">
       ${signalModel
@@ -576,6 +587,7 @@ function toFrontendAsset(asset) {
     name: asset.name,
     theme: asset.theme,
     signals: asset.signals,
+    marketData: asset.marketData,
     thesis: asset.thesis,
   };
 }

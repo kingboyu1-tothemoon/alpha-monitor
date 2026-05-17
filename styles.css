@@ -919,6 +919,29 @@ h2 {
   line-height: 1.55;
 }
 
+.market-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.market-strip span {
+  display: grid;
+  gap: 3px;
+  min-height: 54px;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcf7;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.market-strip strong {
+  color: var(--ink);
+  font-size: 16px;
+}
+
 .evidence-list {
   display: grid;
   gap: 8px;
@@ -1057,6 +1080,10 @@ h2 {
 
   .signal-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .market-strip {
+    grid-template-columns: 1fr;
   }
 
   .module-subgrid,

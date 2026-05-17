@@ -5,7 +5,7 @@
 ```text
 /api/health      服务健康检查
 /api/monitoring  前端读取的监控快照
-/api/refresh     定时刷新入口
+/api/refresh     手动刷新入口
 ```
 
 ## 第一阶段：可上线监控 MVP
@@ -18,13 +18,14 @@
 2. 配置 `.env.example` 中的环境变量。
 3. 打开 `/api/health` 确认服务可用。
 4. 打开首页，确认右上角显示“线上 API”。
+5. 打开 `/api/stocks?symbols=MRVL,VST,NVDA`，确认股票数据源能返回数据。
 
 ## 第二阶段：接真实数据源
 
 优先顺序：
 
-1. Polygon / Tradier：期权链、OI、IV、成交量。
-2. FinancialModelingPrep：公司基础数据、财务数据。
+1. FinancialModelingPrep：先接股票报价、公司名称、行业、成交量。
+2. Polygon / Tradier：再接期权链、OI、IV、成交量。
 3. SEC EDGAR：10-K、10-Q、8-K。
 4. DefiLlama / CoinGlass：Stablecoin、Funding rate、ETF inflow。
 5. Benzinga / Reuters / Bloomberg / The Information：新闻催化剂。
@@ -100,6 +101,7 @@ AI 不应该直接替代数据源，而是做三件事：
 - API 骨架
 - 评分引擎
 - 数据源适配器占位
-- Vercel Cron 配置
+- 股票数据 API：`/api/stocks?symbols=MRVL,VST,NVDA`
+- 手动刷新 API：`/api/refresh`
 - 前端线上 API 读取
 - 本地样例降级

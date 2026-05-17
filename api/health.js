@@ -7,7 +7,7 @@ module.exports = function handler(req, res) {
       POLYGON_API_KEY: Boolean(process.env.POLYGON_API_KEY),
       FMP_API_KEY: Boolean(process.env.FMP_API_KEY),
       SEC_USER_AGENT: Boolean(process.env.SEC_USER_AGENT),
-      CRON_SECRET: Boolean(process.env.CRON_SECRET),
+      REFRESH_SECRET: Boolean(process.env.REFRESH_SECRET || process.env.CRON_SECRET),
     },
   });
 };
