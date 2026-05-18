@@ -44,6 +44,17 @@
 - FinancialModelingPrep
 - Polygon
 - Stooq 延迟行情兜底
+- Yahoo Finance Chart 兜底
+
+覆盖策略：
+
+```text
+FinancialModelingPrep / Polygon
+→ Stooq
+→ Yahoo Finance Chart
+```
+
+如果要尽量覆盖所有美股，建议配置至少一个稳定商业数据源，例如 FinancialModelingPrep 或 Polygon。免 key 兜底源适合原型验证，但不保证覆盖所有股票、ETF、ADR、权证、优先股和退市标的。
 
 尚未完整接入：
 

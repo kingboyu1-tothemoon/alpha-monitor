@@ -54,6 +54,16 @@ async function getStooqQuote(symbol) {
   return fetchText(url);
 }
 
+async function getYahooChart(symbol) {
+  const yahooSymbol = String(symbol).trim().toUpperCase().replace(".", "-");
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?range=1d&interval=1d`;
+  return fetchJson(url, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 AlphaPulse/0.1",
+    },
+  });
+}
+
 async function getSecCompanyFacts(cik) {
   if (!cik) return null;
   const padded = String(cik).padStart(10, "0");
@@ -76,4 +86,5 @@ module.exports = {
   getPolygonQuote,
   getSecCompanyFacts,
   getStooqQuote,
+  getYahooChart,
 };

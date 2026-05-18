@@ -3,6 +3,7 @@ const {
   getFinancialModelingPrepQuote,
   getPolygonQuote,
   getStooqQuote,
+  getYahooChart,
 } = require("./providers");
 
 const DEFAULT_SYMBOLS = ["MRVL", "VST", "CRCL", "NVDA", "TSLA"];
@@ -29,7 +30,7 @@ function safeNumber(value, fallback = 0) {
 
 function normalizeStockSymbol(value) {
   const raw = String(value || "").trim().toUpperCase();
-  return SYMBOL_ALIASES[raw] || raw;
+  return SYMBOL_ALIASES[raw] || raw.replace("/", "-");
 }
 
 function normalizeFmpQuote(payload) {
@@ -113,6 +114,31 @@ function normalizeStooqQuote(payload) {
     marketCap: 0,
     delayed: true,
     source: "Stooq",
+  };
+}
+
+function normalizeYahooChart(payload) {
+  const result = payload?.chart?.result?.[0];
+  const meta = result?.meta;
+  const quote = result?.indicators?.quote?.[0];
+  if (!meta || !quote) return null;
+
+  const price = safeNumber(meta.regularMarketPrice || meta.previousClose);
+  if (!price) return null;
+
+  const previousClose = safeNumber(meta.previousClose || meta.chartPreviousClose);
+  const changePercent = previousClose > 0 ? ((price - previousClose) / previousClose) * 100 : 0;
+  const volumes = Array.isArray(quote.volume) ? quote.volume.filter((item) => Number.isFinite(Number(item))) : [];
+  const volume = volumes.length ? safeNumber(volumes[volumes.length - 1]) : 0;
+
+  return {
+    price,
+    changePercent,
+    volume,
+    averageVolume: 0,
+    marketCap: 0,
+    delayed: true,
+    source: "Yahoo Finance",
   };
 }
 
@@ -243,6 +269,7 @@ function buildAssetFromStock(symbol, quote, profile, polygon) {
 
 async function getStockAsset(symbol) {
   const normalizedSymbol = normalizeStockSymbol(symbol);
+  const providerDiagnostics = [];
   const [quoteResult, profileResult, polygonResult] = await Promise.allSettled([
     getFinancialModelingPrepQuote(normalizedSymbol),
     getFinancialModelingPrepProfile(normalizedSymbol),
@@ -253,13 +280,42 @@ async function getStockAsset(symbol) {
   const profile = profileResult.status === "fulfilled" ? normalizeFmpProfile(profileResult.value) : null;
   const polygon = polygonResult.status === "fulfilled" ? normalizePolygonPreviousClose(polygonResult.value) : null;
 
+  providerDiagnostics.push({
+    provider: "FinancialModelingPrep",
+    ok: Boolean(quote || profile),
+    configured: Boolean(process.env.FMP_API_KEY),
+  });
+  providerDiagnostics.push({
+    provider: "Polygon",
+    ok: Boolean(polygon),
+    configured: Boolean(process.env.POLYGON_API_KEY),
+  });
+
   if (!quote) {
     const stooqResult = await Promise.allSettled([getStooqQuote(normalizedSymbol)]);
     quote = stooqResult[0].status === "fulfilled" ? normalizeStooqQuote(stooqResult[0].value) : null;
+    providerDiagnostics.push({
+      provider: "Stooq",
+      ok: Boolean(quote),
+      configured: true,
+    });
+  }
+
+  if (!quote) {
+    const yahooResult = await Promise.allSettled([getYahooChart(normalizedSymbol)]);
+    quote = yahooResult[0].status === "fulfilled" ? normalizeYahooChart(yahooResult[0].value) : null;
+    providerDiagnostics.push({
+      provider: "Yahoo Finance",
+      ok: Boolean(quote),
+      configured: true,
+    });
   }
 
   if (!quote && !profile && !polygon) return null;
-  return buildAssetFromStock(normalizedSymbol, quote, profile, polygon);
+  return {
+    ...buildAssetFromStock(normalizedSymbol, quote, profile, polygon),
+    providerDiagnostics,
+  };
 }
 
 async function getStockAssets(symbols = DEFAULT_SYMBOLS) {

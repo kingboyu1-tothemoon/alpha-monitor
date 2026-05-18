@@ -21,6 +21,10 @@ module.exports = async function handler(req, res) {
     generatedAt: new Date().toISOString(),
     symbols,
     assets,
+    diagnostics: assets.map((asset) => ({
+      symbol: asset.symbol,
+      providers: asset.providerDiagnostics || [],
+    })),
     missingApiKeys: {
       FMP_API_KEY: !Boolean(process.env.FMP_API_KEY),
       POLYGON_API_KEY: !Boolean(process.env.POLYGON_API_KEY),

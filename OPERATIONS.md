@@ -63,6 +63,32 @@ TSLA
 
 当前第一版只计算资金评分。已接入报价、涨跌幅、成交量、公司名称、行业信息。没有 API key 时会使用 Stooq 作为真实延迟行情兜底；配置 FinancialModelingPrep / Polygon 后覆盖会更稳定。期权 OI、LEAP Call、暗池、Sweep Order 还在后续接入队列里，所以目前评分是“资金行情初筛分”。
 
+## 如何覆盖所有美股
+
+要做到“所有美股都能搜到”，需要两层能力：
+
+1. 完整符号表：NYSE、Nasdaq、AMEX 的 ticker universe，包括普通股、ETF、ADR、Class A/B 股。
+2. 稳定行情源：能对这些 ticker 返回报价、成交量、行业信息。
+
+当前项目已经有行情兜底链路：
+
+```text
+FinancialModelingPrep / Polygon
+→ Stooq
+→ Yahoo Finance Chart
+```
+
+但免 key 源无法保证全覆盖。生产环境建议：
+
+```text
+每日同步 FMP / Polygon ticker list
+→ 保存到数据库
+→ 搜索栏先查本地 symbol 表
+→ 再调用 quote API
+```
+
+这样才能支持公司名搜索、ticker 自动纠错、Class 股格式转换，例如 `BRK.B` / `BRK-B`。
+
 ## 第三阶段：加数据库
 
 推荐：

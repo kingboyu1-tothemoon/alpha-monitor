@@ -43,6 +43,7 @@ const sampleAsset = {
   symbol: "NVDA",
   name: "NVIDIA",
   theme: "AI Infra",
+  providerDiagnostics: [{ provider: "sample", ok: true, configured: true }],
   score: 73,
   marketData: {
     price: 135.4,
@@ -100,9 +101,14 @@ function getSignal(asset, key) {
 function renderAsset(asset) {
   const market = asset.marketData || {};
   const sources = market.sources?.length ? market.sources.join(" / ") : "数据源待接入";
+  const diagnostics = asset.providerDiagnostics?.length
+    ? ` · ${asset.providerDiagnostics
+        .map((item) => `${item.provider}:${item.ok ? "命中" : item.configured ? "未命中" : "未配置"}`)
+        .join(" / ")}`
+    : "";
 
   elements.assetTitle.textContent = `${asset.symbol} · ${asset.name || asset.symbol}`;
-  elements.assetMeta.textContent = `${asset.theme || "股票监控"} · ${sources}${market.delayed ? " · 延迟行情" : ""}`;
+  elements.assetMeta.textContent = `${asset.theme || "股票监控"} · ${sources}${market.delayed ? " · 延迟行情" : ""}${diagnostics}`;
   elements.totalScore.textContent = asset.score ?? "--";
   elements.priceValue.textContent = formatPrice(market.price);
   elements.changeValue.textContent = formatPercent(market.changePercent);
@@ -161,7 +167,8 @@ async function scoreTicker() {
     const asset = payload.assets?.[0];
 
     if (!asset) {
-      elements.apiStatus.textContent = `${symbol} 暂无可用数据`;
+      const diagnostics = payload.diagnostics?.length ? JSON.stringify(payload.diagnostics) : "";
+      elements.apiStatus.textContent = `${symbol} 暂无可用数据。请检查代码是否正确，或配置 FMP/Polygon 提升覆盖。${diagnostics}`;
       return;
     }
 
