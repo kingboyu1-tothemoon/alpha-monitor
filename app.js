@@ -1,79 +1,69 @@
-const sampleAssets = [
+const dimensions = [
   {
-    symbol: "NVDA",
-    name: "NVIDIA",
-    theme: "AI Infra",
-    marketData: {
-      price: 135.4,
-      changePercent: 2.8,
-      relativeVolume: 1.72,
-      sources: ["sample"],
-    },
-    signals: {
-      capital: {
-        score: 86,
-        evidence: ["样例：价格放量上行", "样例：相对成交量 1.72x", "样例：等待期权 OI 与 LEAP Call 接入"],
-      },
-    },
-    thesis: "资金出现明显主动性，适合进入下一步期权异动复核。",
+    key: "capital",
+    title: "资金",
+    weight: 35,
+    factors: ["OI 增长", "LEAP Call", "暗池", "Gamma", "大单连续性"],
   },
   {
-    symbol: "MRVL",
-    name: "Marvell",
-    theme: "AI Infra",
-    marketData: {
-      price: 78.2,
-      changePercent: 1.6,
-      relativeVolume: 1.34,
-      sources: ["sample"],
-    },
-    signals: {
-      capital: {
-        score: 78,
-        evidence: ["样例：价格温和上行", "样例：成交量高于均值", "样例：等待暗池与 Sweep Order 接入"],
-      },
-    },
-    thesis: "资金有抬升迹象，但还需要期权与大单数据确认是否为主力布局。",
+    key: "industry",
+    title: "产业景气度",
+    weight: 25,
+    factors: ["AI Capex", "电力需求", "Stablecoin adoption", "行业订单"],
+  },
+  {
+    key: "earnings",
+    title: "财报拐点",
+    weight: 25,
+    factors: ["Revenue acceleration", "Guidance", "Margin expansion"],
+  },
+  {
+    key: "sentiment",
+    title: "情绪扩散",
+    weight: 15,
+    factors: ["Reddit 热度", "X 提及量", "Google Trends"],
   },
 ];
 
-const elements = {
-  apiStatus: document.querySelector("#apiStatus"),
-  search: document.querySelector("#searchInput"),
-  scoreButton: document.querySelector("#scoreButton"),
-  currentSymbol: document.querySelector("#currentSymbol"),
-  currentName: document.querySelector("#currentName"),
-  capitalScore: document.querySelector("#capitalScore"),
-  relativeVolume: document.querySelector("#relativeVolume"),
-  priceChange: document.querySelector("#priceChange"),
-  lastPrice: document.querySelector("#lastPrice"),
-  capitalThesis: document.querySelector("#capitalThesis"),
-  capitalStatus: document.querySelector("#capitalStatus"),
-  capitalScoreBar: document.querySelector("#capitalScoreBar"),
-  capitalEvidence: document.querySelector("#capitalEvidence"),
-  resultsList: document.querySelector("#resultsList"),
+const sampleAsset = {
+  symbol: "NVDA",
+  name: "NVIDIA",
+  theme: "AI Infra",
+  score: 73,
+  marketData: {
+    price: 135.4,
+    changePercent: 2.8,
+    relativeVolume: 1.72,
+    sources: ["sample"],
+  },
+  signals: {
+    capital: { score: 86, evidence: ["价格放量上行", "相对成交量 1.72x", "等待 OI / LEAP Call / 暗池接入"] },
+    industry: { score: 78, evidence: ["AI Capex 相关标的", "数据中心需求强"] },
+    earnings: { score: 64, evidence: ["等待 Revenue acceleration / Guidance / Margin 数据接入"] },
+    sentiment: { score: 70, evidence: ["等待 Reddit / X / Google Trends 接入"] },
+  },
+  thesis: "样例结果。线上部署后会调用 /api/stocks 获取真实行情初筛。",
 };
 
-let results = [...sampleAssets];
-let selectedAsset = sampleAssets[0];
+const elements = {
+  search: document.querySelector("#searchInput"),
+  scoreButton: document.querySelector("#scoreButton"),
+  apiStatus: document.querySelector("#apiStatus"),
+  assetTitle: document.querySelector("#assetTitle"),
+  assetMeta: document.querySelector("#assetMeta"),
+  totalScore: document.querySelector("#totalScore"),
+  priceValue: document.querySelector("#priceValue"),
+  changeValue: document.querySelector("#changeValue"),
+  volumeValue: document.querySelector("#volumeValue"),
+  dimensionGrid: document.querySelector("#dimensionGrid"),
+};
 
 function isLikelyTicker(value) {
   return /^[A-Z][A-Z0-9.-]{0,9}$/.test(value.trim().toUpperCase());
 }
 
-function getCapitalSignal(asset) {
-  return asset?.signals?.capital ?? { score: 0, evidence: [] };
-}
-
-function getCapitalStatus(score) {
-  if (score >= 85) return "强异动";
-  if (score >= 70) return "观察";
-  if (score >= 55) return "轻微异动";
-  return "未触发";
-}
-
 function formatPrice(value) {
-  return Number.isFinite(Number(value)) ? `$${Number(value).toFixed(2)}` : "价格待接入";
+  return Number.isFinite(Number(value)) ? `$${Number(value).toFixed(2)}` : "--";
 }
 
 function formatPercent(value) {
@@ -84,83 +74,45 @@ function formatRelativeVolume(value) {
   return Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)}x` : "--";
 }
 
-function normalizeAsset(asset) {
-  return {
-    symbol: asset.symbol,
-    name: asset.name || asset.symbol,
-    theme: asset.theme || "股票监控",
-    marketData: asset.marketData || {},
-    signals: {
-      capital: getCapitalSignal(asset),
-    },
-    thesis: asset.thesis || "已生成资金初筛结果，等待更多资金数据源确认。",
-  };
+function getSignal(asset, key) {
+  return asset?.signals?.[key] || { score: 0, evidence: ["等待数据接入"] };
 }
 
-function upsertResult(asset) {
-  const normalized = normalizeAsset(asset);
-  const index = results.findIndex((item) => item.symbol === normalized.symbol);
-
-  if (index >= 0) {
-    results.splice(index, 1);
-  }
-
-  results.unshift(normalized);
-  selectedAsset = normalized;
-}
-
-function renderSelectedAsset() {
-  const asset = selectedAsset;
-  const capital = getCapitalSignal(asset);
-  const score = Number(capital.score || 0);
+function renderAsset(asset) {
   const market = asset.marketData || {};
+  const sources = market.sources?.length ? market.sources.join(" / ") : "数据源待接入";
 
-  elements.currentSymbol.textContent = asset.symbol;
-  elements.currentName.textContent = `${asset.name} · ${asset.theme}`;
-  elements.capitalScore.textContent = `${score}`;
-  elements.relativeVolume.textContent = formatRelativeVolume(market.relativeVolume);
-  elements.priceChange.textContent = formatPercent(market.changePercent);
-  const sourceText = market.sources?.length ? market.sources.join(" / ") : "数据源待接入";
-  elements.lastPrice.textContent = `${formatPrice(market.price)} · ${sourceText}${market.delayed ? " · 延迟" : ""}`;
-  elements.capitalThesis.textContent = asset.thesis;
-  elements.capitalStatus.textContent = getCapitalStatus(score);
-  elements.capitalScoreBar.style.width = `${Math.max(0, Math.min(100, score))}%`;
+  elements.assetTitle.textContent = `${asset.symbol} · ${asset.name || asset.symbol}`;
+  elements.assetMeta.textContent = `${asset.theme || "股票监控"} · ${sources}${market.delayed ? " · 延迟行情" : ""}`;
+  elements.totalScore.textContent = asset.score ?? "--";
+  elements.priceValue.textContent = formatPrice(market.price);
+  elements.changeValue.textContent = formatPercent(market.changePercent);
+  elements.volumeValue.textContent = formatRelativeVolume(market.relativeVolume);
 
-  elements.capitalEvidence.innerHTML = capital.evidence.length
-    ? capital.evidence.map((item) => `<article class="evidence-item">${item}</article>`).join("")
-    : '<article class="evidence-item">暂无资金证据。请确认 API key 是否已配置。</article>';
-}
-
-function renderResults() {
-  elements.resultsList.innerHTML = results
-    .map((asset) => {
-      const capital = getCapitalSignal(asset);
-      const market = asset.marketData || {};
+  elements.dimensionGrid.innerHTML = dimensions
+    .map((dimension) => {
+      const signal = getSignal(asset, dimension.key);
+      const score = Number(signal.score || 0);
       return `
-        <button class="result-row ${asset.symbol === selectedAsset.symbol ? "is-selected" : ""}" type="button" data-symbol="${asset.symbol}">
-          <span>
-            <strong>${asset.symbol}</strong>
-            <small>${asset.name}</small>
-          </span>
-          <span>${capital.score}/100</span>
-          <span>${formatRelativeVolume(market.relativeVolume)}</span>
-          <span>${formatPercent(market.changePercent)}</span>
-        </button>
+        <article class="dimension-card">
+          <div class="dimension-head">
+            <div>
+              <span class="label">权重 ${dimension.weight}%</span>
+              <h3>${dimension.title}</h3>
+            </div>
+            <strong>${score}</strong>
+          </div>
+          <div class="score-bar"><span style="width:${Math.max(0, Math.min(100, score))}%"></span></div>
+          <div class="factor-list">
+            ${dimension.factors.map((factor) => `<span>${factor}</span>`).join("")}
+          </div>
+          <div class="evidence-list">
+            ${signal.evidence.map((item) => `<p>${item}</p>`).join("")}
+          </div>
+        </article>
       `;
     })
     .join("");
-
-  document.querySelectorAll(".result-row").forEach((button) => {
-    button.addEventListener("click", () => {
-      selectedAsset = results.find((item) => item.symbol === button.dataset.symbol) || selectedAsset;
-      render();
-    });
-  });
-}
-
-function render() {
-  renderSelectedAsset();
-  renderResults();
 }
 
 async function scoreTicker() {
@@ -172,40 +124,32 @@ async function scoreTicker() {
   }
 
   if (window.location.protocol === "file:") {
-    elements.apiStatus.textContent = "部署线上后可拉取真实数据";
-    const fallback = sampleAssets.find((asset) => asset.symbol === symbol);
-    if (fallback) {
-      upsertResult(fallback);
-      render();
-    }
+    elements.apiStatus.textContent = "本地预览：显示样例。部署后可拉取真实数据。";
+    renderAsset({ ...sampleAsset, symbol });
     return;
   }
 
   try {
-    elements.apiStatus.textContent = `拉取 ${symbol} 资金数据...`;
+    elements.apiStatus.textContent = `正在评分 ${symbol}...`;
     elements.scoreButton.disabled = true;
-
     const response = await fetch(`/api/stocks?symbols=${encodeURIComponent(symbol)}`, {
       headers: { Accept: "application/json" },
     });
 
-    if (!response.ok) throw new Error("Stock API unavailable");
+    if (!response.ok) throw new Error("API unavailable");
 
     const payload = await response.json();
     const asset = payload.assets?.[0];
 
     if (!asset) {
-      const missingKeys = payload.missingApiKeys || {};
-      const keyHint = missingKeys.FMP_API_KEY && missingKeys.POLYGON_API_KEY ? "，可配置 FMP/Polygon 提升覆盖" : "";
-      elements.apiStatus.textContent = `${symbol} 暂无真实行情${keyHint}`;
+      elements.apiStatus.textContent = `${symbol} 暂无可用数据`;
       return;
     }
 
-    upsertResult(asset);
-    elements.apiStatus.textContent = `${symbol} 资金评分 ${asset.signals?.capital?.score ?? "--"}`;
-    render();
+    elements.apiStatus.textContent = `${symbol} 评分完成`;
+    renderAsset(asset);
   } catch {
-    elements.apiStatus.textContent = `${symbol} 数据拉取失败`;
+    elements.apiStatus.textContent = `${symbol} 评分失败`;
   } finally {
     elements.scoreButton.disabled = false;
   }
@@ -219,4 +163,4 @@ elements.search.addEventListener("keydown", (event) => {
   }
 });
 
-render();
+renderAsset(sampleAsset);

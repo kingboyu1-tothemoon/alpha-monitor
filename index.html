@@ -3,84 +3,49 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AlphaPulse 资金监控</title>
+    <title>AlphaPulse 股票评分</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <main class="app">
-      <header class="hero">
-        <div>
-          <p class="eyebrow">AlphaPulse</p>
-          <h1>资金异动监控</h1>
-          <p class="hero-copy">先只盯一件事：资金有没有先动。输入任意美股代码，系统会拉取股票数据并给出资金异动评分。</p>
-        </div>
-        <span class="api-status" id="apiStatus">本地样例数据</span>
-      </header>
+      <section class="hero">
+        <p class="eyebrow">AlphaPulse</p>
+        <h1>股票爆发潜力评分</h1>
+        <p>输入美股代码，按资金、产业景气度、财报拐点、情绪扩散四个维度计算评分。</p>
+      </section>
 
       <section class="search-panel">
         <label class="search-box">
           <span>⌕</span>
           <input id="searchInput" type="search" placeholder="输入美股代码，例如 NVDA，然后按 Enter" autocomplete="off" />
         </label>
-        <button class="primary-button" type="button" id="scoreButton">计算资金评分</button>
+        <button class="primary-button" type="button" id="scoreButton">开始评分</button>
       </section>
 
-      <section class="summary-grid" aria-label="资金监控摘要">
-        <article class="metric">
-          <span>当前标的</span>
-          <strong id="currentSymbol">--</strong>
-          <small id="currentName">等待搜索</small>
-        </article>
-        <article class="metric highlight">
-          <span>资金异动评分</span>
-          <strong id="capitalScore">--</strong>
-          <small>成交量、价格变化、后续期权数据</small>
-        </article>
-        <article class="metric">
-          <span>相对成交量</span>
-          <strong id="relativeVolume">--</strong>
-          <small>当前量能 vs 平均量能</small>
-        </article>
-        <article class="metric">
-          <span>价格变化</span>
-          <strong id="priceChange">--</strong>
-          <small id="lastPrice">价格待接入</small>
-        </article>
+      <section class="status-row">
+        <span id="apiStatus">等待输入</span>
       </section>
 
-      <section class="capital-layout">
-        <article class="capital-card">
-          <div class="section-head">
-            <div>
-              <h2>资金异动情况</h2>
-              <p id="capitalThesis">输入美股代码后，这里会展示资金是否出现异动、强度如何、证据是什么。</p>
-            </div>
-            <span class="score-pill" id="capitalStatus">等待评分</span>
-          </div>
-          <div class="score-bar" aria-label="资金异动评分">
-            <span id="capitalScoreBar"></span>
-          </div>
-          <div class="evidence-list" id="capitalEvidence"></div>
-        </article>
-
-        <aside class="source-card">
-          <h2>当前资金模块数据源</h2>
-          <div class="source-list">
-            <span>FinancialModelingPrep：报价、涨跌幅、成交量、公司信息</span>
-            <span>Polygon：前收盘、历史成交量补充</span>
-            <span>下一步：Tradier / CBOE 接期权 OI、LEAP Call、IV、Sweep</span>
-          </div>
-        </aside>
-      </section>
-
-      <section class="results-panel">
-        <div class="section-head">
+      <section class="result-card" id="resultCard">
+        <div class="result-head">
           <div>
-            <h2>查询记录</h2>
-            <p>最近搜索的标的会保留在这里，方便比较资金异动强弱。</p>
+            <span class="label">当前标的</span>
+            <h2 id="assetTitle">--</h2>
+            <p id="assetMeta">输入股票代码后显示评分结果</p>
+          </div>
+          <div class="total-score">
+            <span>总分</span>
+            <strong id="totalScore">--</strong>
           </div>
         </div>
-        <div class="results-list" id="resultsList"></div>
+
+        <div class="market-row">
+          <span>价格 <strong id="priceValue">--</strong></span>
+          <span>涨跌 <strong id="changeValue">--</strong></span>
+          <span>相对量 <strong id="volumeValue">--</strong></span>
+        </div>
+
+        <div class="dimension-grid" id="dimensionGrid"></div>
       </section>
     </main>
 

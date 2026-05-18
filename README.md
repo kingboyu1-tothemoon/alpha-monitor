@@ -1,49 +1,54 @@
-# AlphaPulse 资金监控
+# AlphaPulse 股票评分
 
-当前版本先只保留一个模块：资金监控。
-
-目标很简单：
+当前版本重新开始，只保留一个页面：
 
 ```text
-输入任意美股代码
-→ 拉取股票数据
-→ 计算资金异动评分
-→ 展示资金异动证据
+搜索栏
+→ 输入美股代码
+→ 展示四维评分
 ```
 
-## 当前功能
+## 评分模型
 
-- 搜索栏输入美股代码并按 Enter，或点击“计算资金评分”。
-- 线上环境会调用 `/api/stocks?symbols=代码`。
-- 下方展示资金异动评分、相对成交量、价格变化、最新价格。
-- 资金异动情况区域展示判断结论和证据。
-- 查询记录保留最近搜索结果，方便比较。
+维度 1：资金，权重 35%
 
-## 当前评分数据
+- OI 增长
+- LEAP Call
+- 暗池
+- Gamma
+- 大单连续性
 
-第一版资金评分主要使用：
+维度 2：产业景气度，权重 25%
 
-- 价格变化
-- 成交量
-- 相对成交量
-- 公司名称与行业信息
+- AI Capex
+- 电力需求
+- Stablecoin adoption
+- 行业订单
 
-数据源：
+维度 3：财报拐点，权重 25%
+
+- Revenue acceleration
+- Guidance
+- Margin expansion
+
+维度 4：情绪扩散，权重 15%
+
+- Reddit 热度
+- X 提及量
+- Google Trends
+
+## 当前数据状态
+
+当前已接入股票行情初筛：
 
 - FinancialModelingPrep
 - Polygon
-- Stooq 免 key 延迟行情兜底
+- Stooq 延迟行情兜底
 
-如果没有配置 `FMP_API_KEY` 或 `POLYGON_API_KEY`，系统会尝试用 Stooq 获取真实延迟行情。为了更稳定地覆盖所有美股标的，仍建议配置 FinancialModelingPrep 或 Polygon。
+尚未完整接入：
 
-## 下一步
+- 期权 OI / LEAP Call / Gamma / 暗池
+- 财报文本和电话会
+- Reddit / X / Google Trends
 
-资金模块跑顺后，再逐步接：
-
-1. Tradier / CBOE：期权链、OI、Put/Call Ratio、IV。
-2. Sweep / Dark Pool 数据：识别主力扫单和暗池成交。
-3. LEAP Call 识别：判断是否长期资金提前布局。
-4. 连续性判断：识别是否连续几天建仓。
-5. 财报前布局判断：判断资金是否在 earnings 前提前押注。
-
-等资金模块稳定后，再恢复产业、财报、舆情模块。
+所以现在的评分是“可运行的初筛版本”，后续每个维度会逐步接真实专项数据。

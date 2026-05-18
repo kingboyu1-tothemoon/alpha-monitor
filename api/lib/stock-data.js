@@ -123,8 +123,57 @@ function themeFromProfile(profile, symbol) {
   return profile?.sector || "股票监控";
 }
 
+function scoreIndustry(profile, symbol) {
+  const text = `${symbol} ${profile?.sector || ""} ${profile?.industry || ""} ${profile?.description || ""}`.toLowerCase();
+  let score = 52;
+  const evidence = [];
+
+  if (text.includes("semiconductor") || text.includes("data center") || ["NVDA", "AMD", "AVGO", "MRVL", "TSM"].includes(symbol)) {
+    score += 24;
+    evidence.push("AI Capex 相关");
+  }
+  if (text.includes("utilities") || text.includes("power") || ["VST", "CEG", "GEV", "ETR"].includes(symbol)) {
+    score += 24;
+    evidence.push("电力需求相关");
+  }
+  if (text.includes("crypto") || text.includes("blockchain") || text.includes("stablecoin") || ["COIN", "CRCL", "MSTR", "RIOT", "MARA"].includes(symbol)) {
+    score += 24;
+    evidence.push("Stablecoin adoption / Crypto 相关");
+  }
+  if (profile?.industry) evidence.push(`行业订单待接入：${profile.industry}`);
+  if (!evidence.length) evidence.push("等待 AI Capex / 电力需求 / Stablecoin adoption / 行业订单数据接入");
+
+  return { score: Math.min(92, score), evidence };
+}
+
+function scoreEarnings(quote, profile) {
+  const changePercent = safeNumber(quote?.changePercent);
+  const base = 50 + Math.max(-8, Math.min(10, changePercent)) * 1.2;
+  return {
+    score: Math.round(Math.max(35, Math.min(82, base))),
+    evidence: [
+      "Revenue acceleration 待接入",
+      "Guidance 待接入",
+      "Margin expansion 待接入",
+      profile?.source ? `公司资料来源：${profile.source}` : "等待财报数据源",
+    ],
+  };
+}
+
+function scoreSentiment(quote) {
+  const changePercent = safeNumber(quote?.changePercent);
+  const score = Math.min(88, Math.max(38, 52 + changePercent * 2.5));
+  return {
+    score: Math.round(score),
+    evidence: ["Reddit 热度待接入", "X 提及量待接入", "Google Trends 待接入", `${changePercent.toFixed(2)}% 价格反应`],
+  };
+}
+
 function buildAssetFromStock(symbol, quote, profile, polygon) {
   const quoteScores = scoreFromQuote(quote, polygon);
+  const industry = scoreIndustry(profile, symbol);
+  const earnings = scoreEarnings(quote, profile);
+  const sentiment = scoreSentiment(quote);
   const displayName = profile?.name || symbol;
   const changePercent = safeNumber(quote?.changePercent);
   const priceText = quote?.price ? `$${quote.price.toFixed(2)}` : "价格待接入";
@@ -156,16 +205,16 @@ function buildAssetFromStock(symbol, quote, profile, polygon) {
         evidence: [priceText, `${changePercent.toFixed(2)}% 日内变化`, volumeText, `数据源：${sourceText || "未识别"}`],
       },
       industry: {
-        score: 68,
-        evidence: [profile?.industry || "行业标签待接入", "等待行业景气度数据确认"],
+        score: industry.score,
+        evidence: industry.evidence,
       },
       earnings: {
-        score: 58,
-        evidence: ["等待 SEC EDGAR / BamSEC / AlphaSense 财报解析"],
+        score: earnings.score,
+        evidence: earnings.evidence,
       },
       sentiment: {
-        score: quoteScores.sentiment,
-        evidence: ["等待新闻与社媒热度接入", `${changePercent.toFixed(2)}% 价格反应`],
+        score: sentiment.score,
+        evidence: sentiment.evidence,
       },
     },
     thesis: `${displayName} 已接入真实股票行情。当前先用价格变化与成交量形成资金初筛，下一步接期权 OI、LEAP Call、Sweep 和暗池数据提高可靠度。`,
