@@ -58,11 +58,33 @@ FinancialModelingPrep / Polygon
 
 尚未完整接入：
 
-- 期权 OI / LEAP Call / Gamma / 暗池
+- OI 增长历史序列
+- 暗池
+- 大单连续性
 - 财报文本和电话会
 - Reddit / X / Google Trends
 
 所以现在的评分是“可运行的初筛版本”，后续每个维度会逐步接真实专项数据。
+
+## 资金维度接入方式
+
+已接入第一版：
+
+- Polygon Options Snapshot：open interest、LEAP Call OI、Gamma、IV、Put/Call OI Ratio
+
+仍需后续接入：
+
+- OI 增长：需要把每天的 options snapshot 保存到数据库，今天 OI 对比昨天/过去 5 天。
+- 暗池：需要接 Unusual Whales、FINRA TRF 派生数据或其他 dark pool 数据源。
+- 大单连续性：需要接 options trades / sweep / block trade 数据，并保存多日记录。
+
+Vercel 环境变量：
+
+```text
+POLYGON_API_KEY=你的 Polygon key
+UNUSUAL_WHALES_API_KEY=后续接暗池和 sweep 时使用
+TRADIER_TOKEN=后续接期权链或交易数据时使用
+```
 
 ## 搜索说明
 

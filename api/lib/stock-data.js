@@ -1,6 +1,7 @@
 const {
   getFinancialModelingPrepProfile,
   getFinancialModelingPrepQuote,
+  getPolygonOptionChainSnapshot,
   getPolygonQuote,
   getStooqQuote,
   getYahooChart,
@@ -159,6 +160,92 @@ function scoreFromQuote(quote, polygon) {
   };
 }
 
+function daysUntil(dateText) {
+  const expiration = new Date(`${dateText}T00:00:00Z`);
+  if (Number.isNaN(expiration.getTime())) return 0;
+  return Math.ceil((expiration.getTime() - Date.now()) / 86400000);
+}
+
+function normalizePolygonOptionChain(payload, underlyingPrice) {
+  const contracts = Array.isArray(payload?.results) ? payload.results : [];
+  if (!contracts.length) return null;
+
+  let totalOpenInterest = 0;
+  let callOpenInterest = 0;
+  let putOpenInterest = 0;
+  let leapCallOpenInterest = 0;
+  let gammaExposure = 0;
+  let ivSum = 0;
+  let ivCount = 0;
+
+  for (const contract of contracts) {
+    const details = contract.details || {};
+    const oi = safeNumber(contract.open_interest);
+    const gamma = safeNumber(contract.greeks?.gamma);
+    const iv = safeNumber(contract.implied_volatility);
+    const type = details.contract_type;
+    const days = daysUntil(details.expiration_date);
+
+    totalOpenInterest += oi;
+    if (type === "call") callOpenInterest += oi;
+    if (type === "put") putOpenInterest += oi;
+    if (type === "call" && days >= 180) leapCallOpenInterest += oi;
+    if (gamma && oi && underlyingPrice) gammaExposure += gamma * oi * 100 * underlyingPrice;
+    if (iv) {
+      ivSum += iv;
+      ivCount += 1;
+    }
+  }
+
+  return {
+    totalOpenInterest,
+    callOpenInterest,
+    putOpenInterest,
+    leapCallOpenInterest,
+    putCallOiRatio: callOpenInterest > 0 ? putOpenInterest / callOpenInterest : null,
+    gammaExposure,
+    averageIv: ivCount ? ivSum / ivCount : null,
+    contractsScanned: contracts.length,
+    source: "Polygon Options",
+  };
+}
+
+function scoreCapital(quoteScores, optionsMetrics) {
+  let score = quoteScores.capital;
+  const evidence = [];
+
+  if (optionsMetrics) {
+    if (optionsMetrics.totalOpenInterest > 0) {
+      score += Math.min(10, Math.log10(optionsMetrics.totalOpenInterest + 1) * 2);
+      evidence.push(`OI 当前总量 ${Math.round(optionsMetrics.totalOpenInterest).toLocaleString("en-US")}`);
+    }
+    if (optionsMetrics.leapCallOpenInterest > 0) {
+      score += Math.min(12, Math.log10(optionsMetrics.leapCallOpenInterest + 1) * 3);
+      evidence.push(`LEAP Call OI ${Math.round(optionsMetrics.leapCallOpenInterest).toLocaleString("en-US")}`);
+    }
+    if (optionsMetrics.gammaExposure) {
+      score += Math.min(8, Math.log10(Math.abs(optionsMetrics.gammaExposure) + 1) - 4);
+      evidence.push(`Gamma exposure 估算 ${Math.round(optionsMetrics.gammaExposure).toLocaleString("en-US")}`);
+    }
+    if (optionsMetrics.putCallOiRatio !== null) {
+      evidence.push(`Put/Call OI Ratio ${optionsMetrics.putCallOiRatio.toFixed(2)}`);
+    }
+    if (optionsMetrics.averageIv !== null) {
+      evidence.push(`平均 IV ${(optionsMetrics.averageIv * 100).toFixed(1)}%`);
+    }
+  } else {
+    evidence.push("期权链未接入或当前 Polygon plan 不支持 options snapshot");
+  }
+
+  evidence.push("OI 增长需要保存历史快照后计算");
+  evidence.push("暗池 / 大单连续性需要接入 Unusual Whales、Tradier、CBOE LiveVol 或其他 order-flow 数据源");
+
+  return {
+    score: Math.round(Math.max(0, Math.min(100, score))),
+    evidence,
+  };
+}
+
 function themeFromProfile(profile, symbol) {
   const text = `${profile?.sector || ""} ${profile?.industry || ""} ${profile?.description || ""}`.toLowerCase();
 
@@ -215,8 +302,9 @@ function scoreSentiment(quote) {
   };
 }
 
-function buildAssetFromStock(symbol, quote, profile, polygon) {
+function buildAssetFromStock(symbol, quote, profile, polygon, optionsMetrics) {
   const quoteScores = scoreFromQuote(quote, polygon);
+  const capital = scoreCapital(quoteScores, optionsMetrics);
   const industry = scoreIndustry(profile, symbol);
   const earnings = scoreEarnings(quote, profile);
   const sentiment = scoreSentiment(quote);
@@ -247,8 +335,8 @@ function buildAssetFromStock(symbol, quote, profile, polygon) {
     },
     signals: {
       capital: {
-        score: quoteScores.capital,
-        evidence: [priceText, `${changePercent.toFixed(2)}% 日内变化`, volumeText, `数据源：${sourceText || "未识别"}`],
+        score: capital.score,
+        evidence: [priceText, `${changePercent.toFixed(2)}% 日内变化`, volumeText, `数据源：${sourceText || "未识别"}`, ...capital.evidence],
       },
       industry: {
         score: industry.score,
@@ -270,15 +358,17 @@ function buildAssetFromStock(symbol, quote, profile, polygon) {
 async function getStockAsset(symbol) {
   const normalizedSymbol = normalizeStockSymbol(symbol);
   const providerDiagnostics = [];
-  const [quoteResult, profileResult, polygonResult] = await Promise.allSettled([
+  const [quoteResult, profileResult, polygonResult, optionsResult] = await Promise.allSettled([
     getFinancialModelingPrepQuote(normalizedSymbol),
     getFinancialModelingPrepProfile(normalizedSymbol),
     getPolygonQuote(normalizedSymbol),
+    getPolygonOptionChainSnapshot(normalizedSymbol),
   ]);
 
   let quote = quoteResult.status === "fulfilled" ? normalizeFmpQuote(quoteResult.value) : null;
   const profile = profileResult.status === "fulfilled" ? normalizeFmpProfile(profileResult.value) : null;
   const polygon = polygonResult.status === "fulfilled" ? normalizePolygonPreviousClose(polygonResult.value) : null;
+  let optionsMetrics = null;
 
   providerDiagnostics.push({
     provider: "FinancialModelingPrep",
@@ -288,6 +378,11 @@ async function getStockAsset(symbol) {
   providerDiagnostics.push({
     provider: "Polygon",
     ok: Boolean(polygon),
+    configured: Boolean(process.env.POLYGON_API_KEY),
+  });
+  providerDiagnostics.push({
+    provider: "Polygon Options",
+    ok: false,
     configured: Boolean(process.env.POLYGON_API_KEY),
   });
 
@@ -312,8 +407,16 @@ async function getStockAsset(symbol) {
   }
 
   if (!quote && !profile && !polygon) return null;
+  optionsMetrics =
+    optionsResult.status === "fulfilled" && optionsResult.value
+      ? normalizePolygonOptionChain(optionsResult.value, quote?.price || polygon?.previousClose)
+      : null;
+  const polygonOptionsDiagnostics = providerDiagnostics.find((item) => item.provider === "Polygon Options");
+  if (polygonOptionsDiagnostics) polygonOptionsDiagnostics.ok = Boolean(optionsMetrics);
+
   return {
-    ...buildAssetFromStock(normalizedSymbol, quote, profile, polygon),
+    ...buildAssetFromStock(normalizedSymbol, quote, profile, polygon, optionsMetrics),
+    optionsMetrics,
     providerDiagnostics,
   };
 }

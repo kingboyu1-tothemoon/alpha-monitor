@@ -36,6 +36,12 @@ async function getPolygonQuote(symbol) {
   return fetchJson(url);
 }
 
+async function getPolygonOptionChainSnapshot(symbol) {
+  if (!process.env.POLYGON_API_KEY) return null;
+  const url = `https://api.polygon.io/v3/snapshot/options/${encodeURIComponent(symbol)}?limit=250&apiKey=${process.env.POLYGON_API_KEY}`;
+  return fetchJson(url);
+}
+
 async function getFinancialModelingPrepProfile(symbol) {
   if (!process.env.FMP_API_KEY) return null;
   const url = `https://financialmodelingprep.com/api/v3/profile/${encodeURIComponent(symbol)}?apikey=${process.env.FMP_API_KEY}`;
@@ -83,6 +89,7 @@ module.exports = {
   getDefiLlamaStablecoins,
   getFinancialModelingPrepProfile,
   getFinancialModelingPrepQuote,
+  getPolygonOptionChainSnapshot,
   getPolygonQuote,
   getSecCompanyFacts,
   getStooqQuote,
