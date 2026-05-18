@@ -25,6 +25,20 @@ const dimensions = [
   },
 ];
 
+const symbolAliases = {
+  TESLA: "TSLA",
+  NVIDIA: "NVDA",
+  APPLE: "AAPL",
+  MICROSOFT: "MSFT",
+  GOOGLE: "GOOGL",
+  ALPHABET: "GOOGL",
+  AMAZON: "AMZN",
+  META: "META",
+  FACEBOOK: "META",
+  NETFLIX: "NFLX",
+  PALANTIR: "PLTR",
+};
+
 const sampleAsset = {
   symbol: "NVDA",
   name: "NVIDIA",
@@ -60,6 +74,11 @@ const elements = {
 
 function isLikelyTicker(value) {
   return /^[A-Z][A-Z0-9.-]{0,9}$/.test(value.trim().toUpperCase());
+}
+
+function normalizeSearchSymbol(value) {
+  const raw = value.trim().toUpperCase();
+  return symbolAliases[raw] || raw;
 }
 
 function formatPrice(value) {
@@ -116,7 +135,7 @@ function renderAsset(asset) {
 }
 
 async function scoreTicker() {
-  const symbol = elements.search.value.trim().toUpperCase();
+  const symbol = normalizeSearchSymbol(elements.search.value);
 
   if (!isLikelyTicker(symbol)) {
     elements.apiStatus.textContent = "请输入有效美股代码";

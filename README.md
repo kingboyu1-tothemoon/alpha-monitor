@@ -52,3 +52,13 @@
 - Reddit / X / Google Trends
 
 所以现在的评分是“可运行的初筛版本”，后续每个维度会逐步接真实专项数据。
+
+## 搜索说明
+
+搜索栏优先识别美股 ticker。常见公司名也做了简单映射，例如：
+
+- TESLA → TSLA
+- NVIDIA → NVDA
+- APPLE → AAPL
+- GOOGLE → GOOGL
+- PALANTIR → PLTR

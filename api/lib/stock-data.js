@@ -7,9 +7,29 @@ const {
 
 const DEFAULT_SYMBOLS = ["MRVL", "VST", "CRCL", "NVDA", "TSLA"];
 
+const SYMBOL_ALIASES = {
+  TESLA: "TSLA",
+  NVIDIA: "NVDA",
+  APPLE: "AAPL",
+  MICROSOFT: "MSFT",
+  GOOGLE: "GOOGL",
+  ALPHABET: "GOOGL",
+  AMAZON: "AMZN",
+  META: "META",
+  FACEBOOK: "META",
+  NETFLIX: "NFLX",
+  PALANTIR: "PLTR",
+  AMD: "AMD",
+};
+
 function safeNumber(value, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
+}
+
+function normalizeStockSymbol(value) {
+  const raw = String(value || "").trim().toUpperCase();
+  return SYMBOL_ALIASES[raw] || raw;
 }
 
 function normalizeFmpQuote(payload) {
@@ -222,7 +242,7 @@ function buildAssetFromStock(symbol, quote, profile, polygon) {
 }
 
 async function getStockAsset(symbol) {
-  const normalizedSymbol = symbol.trim().toUpperCase();
+  const normalizedSymbol = normalizeStockSymbol(symbol);
   const [quoteResult, profileResult, polygonResult] = await Promise.allSettled([
     getFinancialModelingPrepQuote(normalizedSymbol),
     getFinancialModelingPrepProfile(normalizedSymbol),
@@ -251,4 +271,5 @@ module.exports = {
   DEFAULT_SYMBOLS,
   getStockAsset,
   getStockAssets,
+  normalizeStockSymbol,
 };

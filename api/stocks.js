@@ -1,11 +1,11 @@
 const { enrichAsset } = require("./lib/scoring");
-const { DEFAULT_SYMBOLS, getStockAssets } = require("./lib/stock-data");
+const { DEFAULT_SYMBOLS, getStockAssets, normalizeStockSymbol } = require("./lib/stock-data");
 
 function parseSymbols(value) {
   if (!value) return DEFAULT_SYMBOLS;
   return String(value)
     .split(",")
-    .map((symbol) => symbol.trim().toUpperCase())
+    .map((symbol) => normalizeStockSymbol(symbol))
     .filter(Boolean)
     .slice(0, 20);
 }
