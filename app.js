@@ -46,7 +46,7 @@ function renderResult(payload) {
   const metrics = payload.metrics;
   elements.card.hidden = false;
   elements.assetTitle.textContent = payload.symbol;
-  elements.assetMeta.textContent = `Polygon Options Snapshot · ${payload.generatedAt}`;
+  elements.assetMeta.textContent = `${payload.provider || "Tradier"} Options Chain · ${payload.generatedAt}`;
   elements.flowScore.textContent = payload.score;
   elements.totalOi.textContent = formatNumber(metrics.totalOpenInterest);
   elements.leapCallOi.textContent = formatNumber(metrics.leapCallOpenInterest);
