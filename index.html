@@ -3,21 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>资金流监控</title>
+    <title>资金异动初筛</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <main class="app">
       <section class="hero">
-        <p class="eyebrow">Tradier Options Monitor</p>
-        <h1>资金流入流出监控</h1>
-        <p>输入股票代码，通过 Tradier 查看最近期权持仓、LEAP Call、Gamma、IV 和 Put/Call OI Ratio。</p>
+        <p class="eyebrow">Free Capital Flow Screener</p>
+        <h1>资金异动初筛</h1>
+        <p>输入美股代码，系统用免费延迟行情计算成交量、相对放量、短中期趋势和资金关注度评分。</p>
       </section>
 
       <section class="search-panel">
         <label class="search-box">
-          <span>⌕</span>
-          <input id="symbolInput" type="search" placeholder="输入股票代码，例如 TSLA / NVDA" autocomplete="off" />
+          <span aria-hidden="true">⌕</span>
+          <input id="symbolInput" type="search" placeholder="输入股票代码，例如 TSLA / NVDA / AAPL" autocomplete="off" />
         </label>
         <button id="searchButton" type="button">查询资金情况</button>
       </section>
@@ -37,30 +37,43 @@
           </div>
         </div>
 
+        <div class="direction-bar">
+          <span>流向判断</span>
+          <strong id="flowDirection">--</strong>
+        </div>
+
         <div class="metric-grid">
           <article>
-            <span>总 OI</span>
-            <strong id="totalOi">--</strong>
+            <span>最新价格</span>
+            <strong id="latestClose">--</strong>
           </article>
           <article>
-            <span>LEAP Call OI</span>
-            <strong id="leapCallOi">--</strong>
+            <span>最新涨跌幅</span>
+            <strong id="changePercent">--</strong>
           </article>
           <article>
-            <span>Put/Call OI Ratio</span>
-            <strong id="putCallRatio">--</strong>
+            <span>相对成交量</span>
+            <strong id="relativeVolume">--</strong>
           </article>
           <article>
-            <span>Gamma Exposure</span>
-            <strong id="gammaExposure">--</strong>
+            <span>最新成交量</span>
+            <strong id="latestVolume">--</strong>
           </article>
           <article>
-            <span>平均 IV</span>
-            <strong id="avgIv">--</strong>
+            <span>20 日均量</span>
+            <strong id="avg20Volume">--</strong>
           </article>
           <article>
-            <span>扫描合约</span>
-            <strong id="contractsScanned">--</strong>
+            <span>5 日趋势</span>
+            <strong id="return5d">--</strong>
+          </article>
+          <article>
+            <span>20 日趋势</span>
+            <strong id="return20d">--</strong>
+          </article>
+          <article>
+            <span>成交额</span>
+            <strong id="dollarVolume">--</strong>
           </article>
         </div>
 

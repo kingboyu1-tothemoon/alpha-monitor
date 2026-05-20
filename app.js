@@ -6,6 +6,8 @@ const aliases = {
   APPLE: "AAPL",
   MICROSOFT: "MSFT",
   PALANTIR: "PLTR",
+  META: "META",
+  AMAZON: "AMZN",
 };
 
 const elements = {
@@ -16,12 +18,15 @@ const elements = {
   assetTitle: document.querySelector("#assetTitle"),
   assetMeta: document.querySelector("#assetMeta"),
   flowScore: document.querySelector("#flowScore"),
-  totalOi: document.querySelector("#totalOi"),
-  leapCallOi: document.querySelector("#leapCallOi"),
-  putCallRatio: document.querySelector("#putCallRatio"),
-  gammaExposure: document.querySelector("#gammaExposure"),
-  avgIv: document.querySelector("#avgIv"),
-  contractsScanned: document.querySelector("#contractsScanned"),
+  flowDirection: document.querySelector("#flowDirection"),
+  latestClose: document.querySelector("#latestClose"),
+  changePercent: document.querySelector("#changePercent"),
+  relativeVolume: document.querySelector("#relativeVolume"),
+  latestVolume: document.querySelector("#latestVolume"),
+  avg20Volume: document.querySelector("#avg20Volume"),
+  return5d: document.querySelector("#return5d"),
+  return20d: document.querySelector("#return20d"),
+  dollarVolume: document.querySelector("#dollarVolume"),
   evidenceList: document.querySelector("#evidenceList"),
 };
 
@@ -34,26 +39,46 @@ function formatNumber(value) {
   return Number.isFinite(Number(value)) ? Math.round(Number(value)).toLocaleString("en-US") : "--";
 }
 
-function formatRatio(value) {
-  return Number.isFinite(Number(value)) ? Number(value).toFixed(2) : "--";
+function formatCurrency(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "--";
+
+  if (Math.abs(number) >= 1000000000) return `$${(number / 1000000000).toFixed(2)}B`;
+  if (Math.abs(number) >= 1000000) return `$${(number / 1000000).toFixed(2)}M`;
+  return `$${number.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+}
+
+function formatPrice(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? `$${number.toFixed(2)}` : "--";
 }
 
 function formatPercent(value) {
-  return Number.isFinite(Number(value)) ? `${(Number(value) * 100).toFixed(1)}%` : "--";
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "--";
+  const sign = number > 0 ? "+" : "";
+  return `${sign}${(number * 100).toFixed(2)}%`;
+}
+
+function formatRatio(value) {
+  return Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)}x` : "--";
 }
 
 function renderResult(payload) {
   const metrics = payload.metrics;
   elements.card.hidden = false;
   elements.assetTitle.textContent = payload.symbol;
-  elements.assetMeta.textContent = `${payload.provider || "Tradier"} Options Chain · ${payload.generatedAt}`;
+  elements.assetMeta.textContent = `${payload.provider || "免费延迟行情"} · ${metrics.date} · ${payload.generatedAt}`;
   elements.flowScore.textContent = payload.score;
-  elements.totalOi.textContent = formatNumber(metrics.totalOpenInterest);
-  elements.leapCallOi.textContent = formatNumber(metrics.leapCallOpenInterest);
-  elements.putCallRatio.textContent = formatRatio(metrics.putCallOiRatio);
-  elements.gammaExposure.textContent = formatNumber(metrics.gammaExposure);
-  elements.avgIv.textContent = formatPercent(metrics.averageIv);
-  elements.contractsScanned.textContent = formatNumber(metrics.contractsScanned);
+  elements.flowDirection.textContent = payload.direction;
+  elements.latestClose.textContent = formatPrice(metrics.latestClose);
+  elements.changePercent.textContent = formatPercent(metrics.changePercent);
+  elements.relativeVolume.textContent = formatRatio(metrics.relativeVolume);
+  elements.latestVolume.textContent = formatNumber(metrics.latestVolume);
+  elements.avg20Volume.textContent = formatNumber(metrics.avg20Volume);
+  elements.return5d.textContent = formatPercent(metrics.return5d);
+  elements.return20d.textContent = formatPercent(metrics.return20d);
+  elements.dollarVolume.textContent = formatCurrency(metrics.dollarVolume);
   elements.evidenceList.innerHTML = payload.evidence.map((item) => `<article>${item}</article>`).join("");
 }
 
@@ -65,14 +90,14 @@ async function searchSymbol() {
   }
 
   if (window.location.protocol === "file:") {
-    elements.status.textContent = "本地 file 页面不能调用 Vercel API。部署后访问线上地址测试。";
+    elements.status.textContent = "本地 file 页面不能调用线上 API。请部署到 Vercel 后，用线上网址测试查询。";
     return;
   }
 
   try {
     elements.button.disabled = true;
     elements.status.textContent = `正在查询 ${symbol}...`;
-    const response = await fetch(`/api/options-flow?symbol=${encodeURIComponent(symbol)}`);
+    const response = await fetch(`/api/capital-flow?symbol=${encodeURIComponent(symbol)}`);
     const payload = await response.json();
 
     if (!response.ok || !payload.ok) {
@@ -83,7 +108,7 @@ async function searchSymbol() {
     elements.status.textContent = `${symbol} 查询完成`;
     renderResult(payload);
   } catch {
-    elements.status.textContent = `${symbol} 查询失败，请检查部署和 API key`;
+    elements.status.textContent = `${symbol} 查询失败，免费数据源可能临时不可用`;
   } finally {
     elements.button.disabled = false;
   }
