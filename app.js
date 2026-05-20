@@ -76,7 +76,7 @@ async function searchSymbol() {
     const payload = await response.json();
 
     if (!response.ok || !payload.ok) {
-      elements.status.textContent = payload.error || `${symbol} 查询失败`;
+      elements.status.textContent = payload.hint || payload.error || `${symbol} 查询失败`;
       return;
     }
 

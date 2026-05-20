@@ -20,7 +20,16 @@ async function fetchPolygonOptionSnapshot(symbol) {
   });
 
   if (!response.ok) {
-    throw new Error(`Polygon request failed: ${response.status}`);
+    let detail = "";
+    try {
+      detail = await response.text();
+    } catch {
+      detail = "";
+    }
+    const error = new Error(`Polygon request failed: ${response.status}`);
+    error.status = response.status;
+    error.detail = detail.slice(0, 500);
+    throw error;
   }
 
   return response.json();
@@ -118,6 +127,11 @@ module.exports = async function handler(req, res) {
       ok: false,
       symbol,
       error: error.message || "Options flow query failed.",
+      hint:
+        error.status === 403
+          ? "Polygon returned 403. Your API key likely does not have Options Snapshot access for this endpoint/plan."
+          : "Check POLYGON_API_KEY and Polygon endpoint availability.",
+      detail: error.detail || null,
     });
   }
 };
