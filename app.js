@@ -27,6 +27,7 @@ const elements = {
   return5d: document.querySelector("#return5d"),
   return20d: document.querySelector("#return20d"),
   dollarVolume: document.querySelector("#dollarVolume"),
+  qualitativeList: document.querySelector("#qualitativeList"),
   evidenceList: document.querySelector("#evidenceList"),
 };
 
@@ -64,6 +65,30 @@ function formatRatio(value) {
   return Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)}x` : "--";
 }
 
+function renderQualitativeSignals(signals) {
+  elements.qualitativeList.innerHTML = "";
+
+  for (const signal of signals || []) {
+    const article = document.createElement("article");
+    const head = document.createElement("div");
+    const title = document.createElement("strong");
+    const status = document.createElement("span");
+    const summary = document.createElement("p");
+    const confidence = document.createElement("small");
+
+    head.className = "signal-head";
+    title.textContent = signal.title;
+    status.textContent = signal.status;
+    status.dataset.status = signal.status;
+    summary.textContent = signal.summary;
+    confidence.textContent = `置信度：${signal.confidence}`;
+
+    head.append(title, status);
+    article.append(head, summary, confidence);
+    elements.qualitativeList.append(article);
+  }
+}
+
 function renderResult(payload) {
   const metrics = payload.metrics;
   elements.card.hidden = false;
@@ -79,6 +104,7 @@ function renderResult(payload) {
   elements.return5d.textContent = formatPercent(metrics.return5d);
   elements.return20d.textContent = formatPercent(metrics.return20d);
   elements.dollarVolume.textContent = formatCurrency(metrics.dollarVolume);
+  renderQualitativeSignals(payload.qualitativeSignals);
   elements.evidenceList.innerHTML = payload.evidence.map((item) => `<article>${item}</article>`).join("");
 }
 

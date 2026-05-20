@@ -185,6 +185,117 @@ function classifyFlow(score, metrics) {
   return "中性观察";
 }
 
+function confidenceFromVolume(metrics) {
+  if (metrics.relativeVolume >= 1.5 || metrics.dollarVolume >= 1000000000) return "中等";
+  if (metrics.relativeVolume >= 1.1 || metrics.dollarVolume >= 100000000) return "偏低";
+  return "低";
+}
+
+function buildQualitativeSignals(metrics) {
+  const upDay = metrics.changePercent > 0.005;
+  const downDay = metrics.changePercent < -0.005;
+  const highVolume = metrics.relativeVolume >= 1.5;
+  const veryHighVolume = metrics.relativeVolume >= 2;
+  const risingTrend = metrics.return5d > 0 && metrics.return20d > 0;
+  const fallingTrend = metrics.return5d < 0 && metrics.return20d < 0;
+  const volumeExpanding = metrics.volumeTrend >= 1.2;
+  const highDollarVolume = metrics.dollarVolume >= 1000000000;
+  const volatileMove = Math.abs(metrics.changePercent || 0) >= 0.03;
+  const confidence = confidenceFromVolume(metrics);
+
+  let oiStatus = "中性";
+  let oiSummary = "没有真实 OI 数据，只能从成交量变化判断市场关注度是否升温。";
+  if (highVolume && upDay) {
+    oiStatus = "偏强";
+    oiSummary = "放量上涨，说明当日资金关注度提升，期权持仓增加的概率相对更高。";
+  } else if (highVolume && downDay) {
+    oiStatus = "分歧";
+    oiSummary = "放量下跌，可能是看跌对冲或多空换手，不能直接视为看涨建仓。";
+  } else if (metrics.relativeVolume < 0.8) {
+    oiStatus = "偏弱";
+    oiSummary = "相对成交量偏低，暂时看不出明显新增资金关注。";
+  }
+
+  let leapStatus = "中性";
+  let leapSummary = "没有到期日结构数据，无法确认 LEAP Call 是否真实异动。";
+  if (risingTrend && volumeExpanding) {
+    leapStatus = "偏强";
+    leapSummary = "短中期趋势同时向上且量能扩张，长线看涨仓位布局的可能性提高。";
+  } else if (fallingTrend) {
+    leapStatus = "偏弱";
+    leapSummary = "短中期趋势偏弱，暂时不支持长期看涨仓位正在强化的判断。";
+  }
+
+  let gammaStatus = "中性";
+  let gammaSummary = "没有期权链和 Greeks，无法判断正 Gamma 或负 Gamma 站位。";
+  if (veryHighVolume && volatileMove) {
+    gammaStatus = "活跃";
+    gammaSummary = "放量且价格波动较大，短线 Gamma/做市商对冲影响可能升高。";
+  } else if (highVolume) {
+    gammaStatus = "观察";
+    gammaSummary = "成交量高于常态，若同时接近关键价位，Gamma 影响值得继续跟踪。";
+  }
+
+  let darkPoolStatus = "中性";
+  let darkPoolSummary = "没有暗池成交明细，不能确认机构暗池买卖。";
+  if (highDollarVolume && highVolume && Math.abs(metrics.changePercent || 0) < 0.015) {
+    darkPoolStatus = "可疑吸收";
+    darkPoolSummary = "成交额和相对成交量都高，但价格波动不大，可能存在大资金换手或被动吸收。";
+  } else if (highDollarVolume && upDay) {
+    darkPoolStatus = "偏强";
+    darkPoolSummary = "大成交额配合上涨，机构资金参与度可能较高。";
+  } else if (highDollarVolume && downDay) {
+    darkPoolStatus = "分歧";
+    darkPoolSummary = "大成交额配合下跌，可能是减仓、对冲或换手，方向需要谨慎。";
+  }
+
+  let sweepStatus = "中性";
+  let sweepSummary = "没有逐笔订单，不能确认 Sweep 或连续大单。";
+  if (volumeExpanding && risingTrend) {
+    sweepStatus = "偏强";
+    sweepSummary = "5 日均量高于 20 日均量且趋势向上，说明资金关注有一定连续性。";
+  } else if (veryHighVolume && !risingTrend) {
+    sweepStatus = "一次性异动";
+    sweepSummary = "当日放量明显，但趋势尚未跟上，更像单日事件驱动，需观察连续性。";
+  } else if (!volumeExpanding) {
+    sweepStatus = "偏弱";
+    sweepSummary = "近期量能没有持续扩张，暂时看不到连续大单特征。";
+  }
+
+  return [
+    {
+      title: "期权 OI 变化",
+      status: oiStatus,
+      confidence,
+      summary: oiSummary,
+    },
+    {
+      title: "LEAP Call 布局",
+      status: leapStatus,
+      confidence: confidence === "中等" && risingTrend ? "偏低" : "低",
+      summary: leapSummary,
+    },
+    {
+      title: "Gamma 影响",
+      status: gammaStatus,
+      confidence: highVolume ? "偏低" : "低",
+      summary: gammaSummary,
+    },
+    {
+      title: "暗池成交",
+      status: darkPoolStatus,
+      confidence: highDollarVolume ? "偏低" : "低",
+      summary: darkPoolSummary,
+    },
+    {
+      title: "大单连续性",
+      status: sweepStatus,
+      confidence,
+      summary: sweepSummary,
+    },
+  ];
+}
+
 function formatPercent(value) {
   return Number.isFinite(value) ? `${(value * 100).toFixed(2)}%` : "暂无";
 }
@@ -228,6 +339,7 @@ module.exports = async function handler(req, res) {
     const metrics = summarizeCapitalFlow(bars);
     const score = scoreCapitalFlow(metrics);
     const direction = classifyFlow(score, metrics);
+    const qualitativeSignals = buildQualitativeSignals(metrics);
 
     res.status(200).json({
       ok: true,
@@ -237,6 +349,7 @@ module.exports = async function handler(req, res) {
       score,
       direction,
       metrics,
+      qualitativeSignals,
       evidence: buildEvidence(metrics, direction),
     });
   } catch (error) {
