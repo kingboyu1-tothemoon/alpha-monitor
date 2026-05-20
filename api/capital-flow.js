@@ -129,12 +129,16 @@ function parseMarketNumber(value) {
   if (typeof value === "number") return value;
   if (!value) return null;
 
-  const cleaned = String(value)
+  const raw = String(value).trim();
+  const isNegative = raw.startsWith("(") && raw.endsWith(")");
+  const cleaned = raw
     .replace(/[$,%]/g, "")
     .replace(/,/g, "")
+    .replace(/[()]/g, "")
     .trim();
 
-  return toNumber(cleaned);
+  const parsed = toNumber(cleaned);
+  return Number.isFinite(parsed) && isNegative ? -parsed : parsed;
 }
 
 function normalizeSymbol(value) {
@@ -207,6 +211,14 @@ async function fetchNasdaqInfo(symbol) {
     stockType: payload?.data?.stockType || "",
     exchange: payload?.data?.exchange || "",
   };
+}
+
+async function fetchNasdaqFinancials(symbol, frequency = 2) {
+  return fetchJson(`https://api.nasdaq.com/api/company/${encodeURIComponent(symbol)}/financials?frequency=${frequency}`);
+}
+
+async function fetchNasdaqEarningsCalendar(symbol) {
+  return fetchJson(`https://api.nasdaq.com/api/calendar/earnings?symbol=${encodeURIComponent(symbol)}`);
 }
 
 async function fetchHistory(symbol, assetClass = "stocks") {
@@ -537,6 +549,232 @@ async function buildIndustryOutlook(symbol, info, stockMetrics) {
   };
 }
 
+function getFinancialPeriods(table) {
+  const headers = table?.headers || {};
+  return Object.entries(headers)
+    .filter(([key]) => key !== "value1")
+    .map(([key, date]) => ({ key, date }))
+    .filter((period) => period.date);
+}
+
+function findFinancialRow(table, labels) {
+  const rows = table?.rows || [];
+  const normalizedLabels = labels.map((label) => label.toLowerCase());
+  return rows.find((row) => {
+    const label = String(row.value1 || "").toLowerCase();
+    return normalizedLabels.some((target) => label.includes(target));
+  });
+}
+
+function parseQuarterlyFinancials(payload) {
+  const table = payload?.data?.incomeStatementTable;
+  const periods = getFinancialPeriods(table).slice(0, 4);
+  const revenueRow = findFinancialRow(table, ["total revenue", "revenue"]);
+  const costRow = findFinancialRow(table, ["cost of revenue", "cost of goods"]);
+  const grossProfitRow = findFinancialRow(table, ["gross profit"]);
+
+  return periods
+    .map((period) => {
+      const revenue = parseMarketNumber(revenueRow?.[period.key]);
+      const costOfRevenue = parseMarketNumber(costRow?.[period.key]);
+      const reportedGrossProfit = parseMarketNumber(grossProfitRow?.[period.key]);
+      const grossProfit =
+        Number.isFinite(reportedGrossProfit)
+          ? reportedGrossProfit
+          : Number.isFinite(revenue) && Number.isFinite(costOfRevenue)
+            ? revenue - costOfRevenue
+            : null;
+
+      return {
+        date: period.date,
+        revenue,
+        costOfRevenue,
+        grossProfit,
+        grossMargin: Number.isFinite(revenue) && revenue !== 0 && Number.isFinite(grossProfit) ? grossProfit / revenue : null,
+      };
+    })
+    .filter((quarter) => Number.isFinite(quarter.revenue) && quarter.revenue > 0);
+}
+
+function parseEarningsCalendar(payload, symbol) {
+  const row = (payload?.data?.rows || []).find((item) => String(item.symbol || "").toUpperCase() === symbol);
+  if (!row) return null;
+
+  const epsForecast = parseMarketNumber(row.epsForecast);
+  const lastYearEps = parseMarketNumber(row.lastYearEPS);
+
+  return {
+    fiscalQuarterEnding: row.fiscalQuarterEnding || "",
+    epsForecast,
+    lastYearEps,
+    epsForecastGrowth:
+      Number.isFinite(epsForecast) && Number.isFinite(lastYearEps) && lastYearEps !== 0
+        ? epsForecast / lastYearEps - 1
+        : null,
+    reportTime: row.time || "",
+    lastYearReportDate: row.lastYearRptDt || "",
+  };
+}
+
+function scoreRevenueAcceleration(latestGrowth, previousGrowth, acceleration) {
+  let score = 50;
+
+  if (latestGrowth >= 0.2) score += 18;
+  else if (latestGrowth >= 0.1) score += 12;
+  else if (latestGrowth >= 0.03) score += 6;
+  else if (latestGrowth <= -0.1) score -= 14;
+  else if (latestGrowth <= -0.03) score -= 7;
+
+  if (acceleration >= 0.08) score += 16;
+  else if (acceleration >= 0.03) score += 10;
+  else if (acceleration > 0) score += 4;
+  else if (acceleration <= -0.08) score -= 16;
+  else if (acceleration <= -0.03) score -= 10;
+
+  return Math.round(Math.max(0, Math.min(100, score)));
+}
+
+function scoreMarginExpansion(latestMargin, previousMargin, expansion) {
+  let score = 50;
+
+  if (latestMargin >= 0.65) score += 10;
+  else if (latestMargin >= 0.5) score += 6;
+  else if (latestMargin < 0.25) score -= 8;
+
+  if (expansion >= 0.05) score += 18;
+  else if (expansion >= 0.02) score += 12;
+  else if (expansion > 0) score += 5;
+  else if (expansion <= -0.05) score -= 18;
+  else if (expansion <= -0.02) score -= 12;
+
+  return Math.round(Math.max(0, Math.min(100, score)));
+}
+
+function scoreGuidanceProxy(calendar) {
+  if (!calendar || !Number.isFinite(calendar.epsForecastGrowth)) {
+    return 50;
+  }
+
+  let score = 50;
+  if (calendar.epsForecastGrowth >= 0.5) score += 22;
+  else if (calendar.epsForecastGrowth >= 0.25) score += 15;
+  else if (calendar.epsForecastGrowth >= 0.1) score += 8;
+  else if (calendar.epsForecastGrowth <= -0.3) score -= 20;
+  else if (calendar.epsForecastGrowth <= -0.1) score -= 10;
+
+  return Math.round(Math.max(0, Math.min(100, score)));
+}
+
+function classifyEarnings(score) {
+  if (score >= 78) return "财报拐点确认";
+  if (score >= 64) return "财报改善";
+  if (score >= 45) return "中性观察";
+  return "财报承压";
+}
+
+function statusFromScore(score, strong, weak) {
+  if (score >= 65) return strong;
+  if (score <= 40) return weak;
+  return "中性";
+}
+
+function buildEarningsSignals(metrics) {
+  return [
+    {
+      title: "Revenue acceleration",
+      status: statusFromScore(metrics.revenueScore, "收入加速", "收入减速"),
+      confidence: metrics.hasFinancials ? "中等" : "低",
+      summary: metrics.hasFinancials
+        ? `最新季度收入环比 ${formatPercent(metrics.latestRevenueGrowth)}，较上一轮增长变化 ${formatPercent(metrics.revenueAcceleration)}。`
+        : "暂时没有拿到足够的季度收入数据，收入加速维持中性。",
+    },
+    {
+      title: "Guidance",
+      status: statusFromScore(metrics.guidanceScore, "预期改善", "预期承压"),
+      confidence: metrics.hasCalendar ? "偏低" : "低",
+      summary: metrics.hasCalendar
+        ? `Nasdaq earnings calendar 显示 EPS consensus 相对去年同期变化 ${formatPercent(metrics.epsForecastGrowth)}。这只是市场预期代理，不等同于管理层正式指引。`
+        : "没有接入 earnings call transcript 或公司指引文本，暂不判断管理层正式 Guidance。",
+    },
+    {
+      title: "Margin expansion",
+      status: statusFromScore(metrics.marginScore, "毛利率扩张", "毛利率收缩"),
+      confidence: metrics.hasFinancials && Number.isFinite(metrics.grossMarginExpansion) ? "中等" : "低",
+      summary: Number.isFinite(metrics.grossMarginExpansion)
+        ? `最新季度毛利率 ${formatPercent(metrics.latestGrossMargin)}，较上一季度变化 ${formatPercent(metrics.grossMarginExpansion)}。`
+        : "暂时没有拿到足够的成本或毛利数据，毛利率变化维持中性。",
+    },
+  ];
+}
+
+function buildEarningsEvidence(metrics) {
+  return [
+    `最新财报季度：${metrics.latestQuarter || "暂无"}`,
+    `最新季度收入：${Number.isFinite(metrics.latestRevenue) ? Math.round(metrics.latestRevenue).toLocaleString("en-US") : "暂无"}`,
+    `收入环比增速：${formatPercent(metrics.latestRevenueGrowth)}，收入加速度：${formatPercent(metrics.revenueAcceleration)}`,
+    `毛利率：${formatPercent(metrics.latestGrossMargin)}，毛利率变化：${formatPercent(metrics.grossMarginExpansion)}`,
+    `EPS consensus YoY：${formatPercent(metrics.epsForecastGrowth)}，该项是 Guidance 代理，不是管理层指引原文。`,
+  ];
+}
+
+async function buildEarningsInflection(symbol) {
+  const [financialPayload, calendarPayload] = await Promise.all([
+    fetchNasdaqFinancials(symbol, 2).catch(() => null),
+    fetchNasdaqEarningsCalendar(symbol).catch(() => null),
+  ]);
+
+  const quarters = parseQuarterlyFinancials(financialPayload);
+  const calendar = parseEarningsCalendar(calendarPayload, symbol);
+  const latest = quarters[0] || {};
+  const previous = quarters[1] || {};
+  const beforePrevious = quarters[2] || {};
+  const latestRevenueGrowth = percentChange(latest.revenue, previous.revenue);
+  const previousRevenueGrowth = percentChange(previous.revenue, beforePrevious.revenue);
+  const revenueAcceleration =
+    Number.isFinite(latestRevenueGrowth) && Number.isFinite(previousRevenueGrowth)
+      ? latestRevenueGrowth - previousRevenueGrowth
+      : null;
+  const grossMarginExpansion =
+    Number.isFinite(latest.grossMargin) && Number.isFinite(previous.grossMargin)
+      ? latest.grossMargin - previous.grossMargin
+      : null;
+  const revenueScore = Number.isFinite(latestRevenueGrowth)
+    ? scoreRevenueAcceleration(latestRevenueGrowth, previousRevenueGrowth, revenueAcceleration || 0)
+    : 50;
+  const marginScore = Number.isFinite(latest.grossMargin)
+    ? scoreMarginExpansion(latest.grossMargin, previous.grossMargin, grossMarginExpansion || 0)
+    : 50;
+  const guidanceScore = scoreGuidanceProxy(calendar);
+  const score = Math.round(revenueScore * 0.4 + guidanceScore * 0.3 + marginScore * 0.3);
+  const metrics = {
+    hasFinancials: quarters.length >= 3,
+    hasCalendar: Boolean(calendar),
+    latestQuarter: latest.date || "",
+    latestRevenue: latest.revenue,
+    latestRevenueGrowth,
+    previousRevenueGrowth,
+    revenueAcceleration,
+    latestGrossMargin: latest.grossMargin,
+    previousGrossMargin: previous.grossMargin,
+    grossMarginExpansion,
+    epsForecastGrowth: calendar?.epsForecastGrowth ?? null,
+    epsForecast: calendar?.epsForecast ?? null,
+    lastYearEps: calendar?.lastYearEps ?? null,
+    fiscalQuarterEnding: calendar?.fiscalQuarterEnding || "",
+    revenueScore,
+    guidanceScore,
+    marginScore,
+  };
+
+  return {
+    score,
+    stage: classifyEarnings(score),
+    metrics,
+    signals: buildEarningsSignals(metrics),
+    evidence: buildEarningsEvidence(metrics),
+  };
+}
+
 function formatPercent(value) {
   return Number.isFinite(value) ? `${(value * 100).toFixed(2)}%` : "暂无";
 }
@@ -585,6 +823,7 @@ module.exports = async function handler(req, res) {
     const direction = classifyFlow(score, metrics);
     const qualitativeSignals = buildQualitativeSignals(metrics);
     const industryOutlook = await buildIndustryOutlook(symbol, info, metrics);
+    const earningsInflection = await buildEarningsInflection(symbol);
 
     res.status(200).json({
       ok: true,
@@ -597,6 +836,7 @@ module.exports = async function handler(req, res) {
       metrics,
       qualitativeSignals,
       industryOutlook,
+      earningsInflection,
       evidence: buildEvidence(metrics, direction),
     });
   } catch (error) {

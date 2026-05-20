@@ -36,6 +36,16 @@ const elements = {
   relativeStrength20: document.querySelector("#relativeStrength20"),
   stockVsTheme20: document.querySelector("#stockVsTheme20"),
   industryEvidence: document.querySelector("#industryEvidence"),
+  earningsStage: document.querySelector("#earningsStage"),
+  earningsQuarter: document.querySelector("#earningsQuarter"),
+  earningsScore: document.querySelector("#earningsScore"),
+  latestRevenueGrowth: document.querySelector("#latestRevenueGrowth"),
+  revenueAcceleration: document.querySelector("#revenueAcceleration"),
+  latestGrossMargin: document.querySelector("#latestGrossMargin"),
+  grossMarginExpansion: document.querySelector("#grossMarginExpansion"),
+  epsForecastGrowth: document.querySelector("#epsForecastGrowth"),
+  earningsSignals: document.querySelector("#earningsSignals"),
+  earningsEvidence: document.querySelector("#earningsEvidence"),
   qualitativeList: document.querySelector("#qualitativeList"),
   evidenceList: document.querySelector("#evidenceList"),
 };
@@ -117,6 +127,49 @@ function renderIndustryOutlook(outlook) {
   }
 }
 
+function renderSignalCards(container, signals) {
+  container.innerHTML = "";
+
+  for (const signal of signals || []) {
+    const article = document.createElement("article");
+    const head = document.createElement("div");
+    const title = document.createElement("strong");
+    const status = document.createElement("span");
+    const summary = document.createElement("p");
+    const confidence = document.createElement("small");
+
+    head.className = "signal-head";
+    title.textContent = signal.title;
+    status.textContent = signal.status;
+    summary.textContent = signal.summary;
+    confidence.textContent = `置信度：${signal.confidence}`;
+
+    head.append(title, status);
+    article.append(head, summary, confidence);
+    container.append(article);
+  }
+}
+
+function renderEarningsInflection(inflection) {
+  const metrics = inflection?.metrics || {};
+  elements.earningsStage.textContent = inflection?.stage || "--";
+  elements.earningsQuarter.textContent = metrics.latestQuarter ? `最新季度：${metrics.latestQuarter}` : "最新季度：暂无";
+  elements.earningsScore.textContent = Number.isFinite(Number(inflection?.score)) ? inflection.score : "--";
+  elements.latestRevenueGrowth.textContent = formatPercent(metrics.latestRevenueGrowth);
+  elements.revenueAcceleration.textContent = formatPercent(metrics.revenueAcceleration);
+  elements.latestGrossMargin.textContent = formatPercent(metrics.latestGrossMargin);
+  elements.grossMarginExpansion.textContent = formatPercent(metrics.grossMarginExpansion);
+  elements.epsForecastGrowth.textContent = formatPercent(metrics.epsForecastGrowth);
+  renderSignalCards(elements.earningsSignals, inflection?.signals);
+  elements.earningsEvidence.innerHTML = "";
+
+  for (const item of inflection?.evidence || []) {
+    const article = document.createElement("article");
+    article.textContent = item;
+    elements.earningsEvidence.append(article);
+  }
+}
+
 function renderResult(payload) {
   const metrics = payload.metrics;
   elements.card.hidden = false;
@@ -134,6 +187,7 @@ function renderResult(payload) {
   elements.return20d.textContent = formatPercent(metrics.return20d);
   elements.dollarVolume.textContent = formatCurrency(metrics.dollarVolume);
   renderIndustryOutlook(payload.industryOutlook);
+  renderEarningsInflection(payload.earningsInflection);
   renderQualitativeSignals(payload.qualitativeSignals);
   elements.evidenceList.innerHTML = payload.evidence.map((item) => `<article>${item}</article>`).join("");
 }

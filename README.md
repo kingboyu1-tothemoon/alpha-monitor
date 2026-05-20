@@ -40,6 +40,16 @@
 
 这个模块同样不使用付费产业数据库，属于“免费行情 + 产业映射表”的景气度近似判断。
 
+## 第三模块：财报拐点
+
+搜索股票后，系统会调用 Nasdaq 的公开财务数据，评估三个维度：
+
+- Revenue acceleration：用最近季度收入环比增速，以及环比增速是否继续加速来判断
+- Guidance：用 Nasdaq earnings calendar 里的 EPS consensus 相对去年同期变化做低置信度代理
+- Margin expansion：用收入和成本计算毛利率，并判断毛利率是否扩张
+
+注意：当前 Guidance 不是 earnings call transcript 或管理层正式指引原文，只是市场预期代理。后续如果接入财报电话会文本或公司 press release，可以把这一项升级为真正的管理层指引分析。
+
 ## 数据源
 
 后端接口 `/api/capital-flow` 当前使用 Nasdaq 的无 key 延迟历史行情接口。
