@@ -890,6 +890,42 @@ function buildSentimentDiffusion(stockMetrics, industryOutlook, earningsInflecti
   };
 }
 
+function buildCompositeScore(capitalScore, industryOutlook, earningsInflection, sentimentDiffusion) {
+  const weights = {
+    capital: 0.35,
+    industry: 0.25,
+    earnings: 0.25,
+    sentiment: 0.15,
+  };
+  const industryScore = Number.isFinite(industryOutlook?.score) ? industryOutlook.score : 50;
+  const earningsScore = Number.isFinite(earningsInflection?.score) ? earningsInflection.score : 50;
+  const sentimentScore = Number.isFinite(sentimentDiffusion?.score) ? sentimentDiffusion.score : 50;
+  const totalScore = Math.round(
+    capitalScore * weights.capital +
+      industryScore * weights.industry +
+      earningsScore * weights.earnings +
+      sentimentScore * weights.sentiment
+  );
+
+  let stage = "中性观察";
+  if (totalScore >= 80) stage = "高概率爆发观察";
+  else if (totalScore >= 68) stage = "多维度共振";
+  else if (totalScore >= 55) stage = "局部改善";
+  else if (totalScore < 40) stage = "暂未形成共振";
+
+  return {
+    totalScore,
+    stage,
+    weights,
+    components: {
+      capital: capitalScore,
+      industry: industryScore,
+      earnings: earningsScore,
+      sentiment: sentimentScore,
+    },
+  };
+}
+
 function formatPercent(value) {
   return Number.isFinite(value) ? `${(value * 100).toFixed(2)}%` : "暂无";
 }
@@ -940,6 +976,7 @@ module.exports = async function handler(req, res) {
     const industryOutlook = await buildIndustryOutlook(symbol, info, metrics);
     const earningsInflection = await buildEarningsInflection(symbol);
     const sentimentDiffusion = buildSentimentDiffusion(metrics, industryOutlook, earningsInflection);
+    const composite = buildCompositeScore(score, industryOutlook, earningsInflection, sentimentDiffusion);
 
     res.status(200).json({
       ok: true,
@@ -947,6 +984,10 @@ module.exports = async function handler(req, res) {
       symbol,
       companyName: info.companyName,
       generatedAt: new Date().toISOString(),
+      totalScore: composite.totalScore,
+      totalStage: composite.stage,
+      scoreWeights: composite.weights,
+      componentScores: composite.components,
       score,
       direction,
       metrics,

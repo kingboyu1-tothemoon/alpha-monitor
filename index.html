@@ -3,15 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>资金异动初筛</title>
+    <title>股票多维度评分系统</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <main class="app">
       <section class="hero">
         <p class="eyebrow">Free Capital Flow Screener</p>
-        <h1>资金异动初筛</h1>
-        <p>输入美股代码，系统用免费延迟行情计算成交量、相对放量、短中期趋势和资金关注度评分。</p>
+        <h1>股票多维度评分系统</h1>
+        <p>输入美股代码，系统按资金、产业景气度、财报拐点和情绪扩散四个维度计算综合评分。</p>
       </section>
 
       <section class="search-panel">
@@ -19,7 +19,7 @@
           <span aria-hidden="true">⌕</span>
           <input id="symbolInput" type="search" placeholder="输入股票代码，例如 TSLA / NVDA / AAPL" autocomplete="off" />
         </label>
-        <button id="searchButton" type="button">查询资金情况</button>
+        <button id="searchButton" type="button">评分</button>
       </section>
 
       <p class="status" id="statusText">等待输入</p>
@@ -32,17 +32,21 @@
             <p id="assetMeta">--</p>
           </div>
           <div class="score-box">
-            <span>资金评分</span>
+            <span>总评分</span>
             <strong id="flowScore">--</strong>
           </div>
         </div>
 
         <div class="direction-bar">
-          <span>流向判断</span>
-          <strong id="flowDirection">--</strong>
+          <span>综合阶段</span>
+          <strong id="totalStage">--</strong>
         </div>
 
         <div class="metric-grid">
+          <article>
+            <span>资金评分</span>
+            <strong id="capitalScore">--</strong>
+          </article>
           <article>
             <span>最新价格</span>
             <strong id="latestClose">--</strong>

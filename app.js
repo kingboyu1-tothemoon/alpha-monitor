@@ -18,7 +18,8 @@ const elements = {
   assetTitle: document.querySelector("#assetTitle"),
   assetMeta: document.querySelector("#assetMeta"),
   flowScore: document.querySelector("#flowScore"),
-  flowDirection: document.querySelector("#flowDirection"),
+  totalStage: document.querySelector("#totalStage"),
+  capitalScore: document.querySelector("#capitalScore"),
   latestClose: document.querySelector("#latestClose"),
   changePercent: document.querySelector("#changePercent"),
   relativeVolume: document.querySelector("#relativeVolume"),
@@ -200,8 +201,9 @@ function renderResult(payload) {
   elements.assetTitle.textContent = payload.symbol;
   const companyName = payload.companyName ? `${payload.companyName} · ` : "";
   elements.assetMeta.textContent = `${companyName}${payload.provider || "免费延迟行情"} · ${metrics.date} · ${payload.generatedAt}`;
-  elements.flowScore.textContent = payload.score;
-  elements.flowDirection.textContent = payload.direction;
+  elements.flowScore.textContent = Number.isFinite(Number(payload.totalScore)) ? payload.totalScore : payload.score;
+  elements.totalStage.textContent = payload.totalStage || payload.direction;
+  elements.capitalScore.textContent = payload.score;
   elements.latestClose.textContent = formatPrice(metrics.latestClose);
   elements.changePercent.textContent = formatPercent(metrics.changePercent);
   elements.relativeVolume.textContent = formatRatio(metrics.relativeVolume);
