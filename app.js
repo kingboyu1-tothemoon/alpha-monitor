@@ -46,6 +46,13 @@ const elements = {
   epsForecastGrowth: document.querySelector("#epsForecastGrowth"),
   earningsSignals: document.querySelector("#earningsSignals"),
   earningsEvidence: document.querySelector("#earningsEvidence"),
+  sentimentStage: document.querySelector("#sentimentStage"),
+  sentimentScore: document.querySelector("#sentimentScore"),
+  redditProxyScore: document.querySelector("#redditProxyScore"),
+  xProxyScore: document.querySelector("#xProxyScore"),
+  googleProxyScore: document.querySelector("#googleProxyScore"),
+  sentimentSignals: document.querySelector("#sentimentSignals"),
+  sentimentEvidence: document.querySelector("#sentimentEvidence"),
   qualitativeList: document.querySelector("#qualitativeList"),
   evidenceList: document.querySelector("#evidenceList"),
 };
@@ -170,6 +177,23 @@ function renderEarningsInflection(inflection) {
   }
 }
 
+function renderSentimentDiffusion(diffusion) {
+  const metrics = diffusion?.metrics || {};
+  elements.sentimentStage.textContent = diffusion?.stage || "--";
+  elements.sentimentScore.textContent = Number.isFinite(Number(diffusion?.score)) ? diffusion.score : "--";
+  elements.redditProxyScore.textContent = Number.isFinite(Number(metrics.reddit)) ? metrics.reddit : "--";
+  elements.xProxyScore.textContent = Number.isFinite(Number(metrics.x)) ? metrics.x : "--";
+  elements.googleProxyScore.textContent = Number.isFinite(Number(metrics.google)) ? metrics.google : "--";
+  renderSignalCards(elements.sentimentSignals, diffusion?.signals);
+  elements.sentimentEvidence.innerHTML = "";
+
+  for (const item of diffusion?.evidence || []) {
+    const article = document.createElement("article");
+    article.textContent = item;
+    elements.sentimentEvidence.append(article);
+  }
+}
+
 function renderResult(payload) {
   const metrics = payload.metrics;
   elements.card.hidden = false;
@@ -188,6 +212,7 @@ function renderResult(payload) {
   elements.dollarVolume.textContent = formatCurrency(metrics.dollarVolume);
   renderIndustryOutlook(payload.industryOutlook);
   renderEarningsInflection(payload.earningsInflection);
+  renderSentimentDiffusion(payload.sentimentDiffusion);
   renderQualitativeSignals(payload.qualitativeSignals);
   elements.evidenceList.innerHTML = payload.evidence.map((item) => `<article>${item}</article>`).join("");
 }

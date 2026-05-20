@@ -358,6 +358,74 @@ button:disabled {
   margin-top: 10px;
 }
 
+.sentiment-panel {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8f7ff;
+}
+
+.sentiment-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 132px;
+  gap: 12px;
+}
+
+.sentiment-summary > div,
+.sentiment-metrics article {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.sentiment-summary span,
+.sentiment-metrics span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.sentiment-summary strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 22px;
+}
+
+.sentiment-summary p {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.sentiment-score {
+  text-align: center;
+}
+
+.sentiment-score strong {
+  color: #5145a5;
+  font-size: 40px;
+  line-height: 1;
+}
+
+.sentiment-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.sentiment-metrics strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 20px;
+}
+
+.sentiment-signals {
+  margin-top: 10px;
+}
+
 .qualitative-panel {
   margin-top: 14px;
 }
@@ -453,7 +521,9 @@ button:disabled {
   .industry-summary,
   .industry-metrics,
   .earnings-summary,
-  .earnings-metrics {
+  .earnings-metrics,
+  .sentiment-summary,
+  .sentiment-metrics {
     grid-template-columns: 1fr;
   }
 

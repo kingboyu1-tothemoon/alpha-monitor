@@ -775,6 +775,121 @@ async function buildEarningsInflection(symbol) {
   };
 }
 
+function scoreRedditProxy(stockMetrics) {
+  let score = 45;
+
+  if (stockMetrics.relativeVolume >= 3) score += 28;
+  else if (stockMetrics.relativeVolume >= 2) score += 20;
+  else if (stockMetrics.relativeVolume >= 1.5) score += 12;
+  else if (stockMetrics.relativeVolume >= 1.15) score += 6;
+  else if (stockMetrics.relativeVolume < 0.75) score -= 8;
+
+  if (Math.abs(stockMetrics.changePercent || 0) >= 0.08) score += 14;
+  else if (Math.abs(stockMetrics.changePercent || 0) >= 0.04) score += 9;
+  else if (Math.abs(stockMetrics.changePercent || 0) >= 0.02) score += 5;
+
+  if (stockMetrics.dollarVolume >= 1000000000) score += 8;
+  else if (stockMetrics.dollarVolume >= 250000000) score += 4;
+
+  return Math.round(Math.max(0, Math.min(100, score)));
+}
+
+function scoreXProxy(stockMetrics, industryOutlook, earningsInflection) {
+  let score = 45;
+
+  if (stockMetrics.changePercent >= 0.05) score += 16;
+  else if (stockMetrics.changePercent >= 0.025) score += 10;
+  else if (stockMetrics.changePercent >= 0.01) score += 5;
+  else if (stockMetrics.changePercent <= -0.05) score += 10;
+  else if (stockMetrics.changePercent <= -0.025) score += 6;
+
+  if (stockMetrics.return5d >= 0.1) score += 12;
+  else if (stockMetrics.return5d >= 0.05) score += 7;
+  else if (stockMetrics.return5d <= -0.1) score += 8;
+
+  if (stockMetrics.relativeVolume >= 1.5) score += 8;
+  if ((industryOutlook?.score || 0) >= 70) score += 6;
+  if ((earningsInflection?.score || 0) >= 70) score += 6;
+
+  return Math.round(Math.max(0, Math.min(100, score)));
+}
+
+function scoreGoogleTrendsProxy(stockMetrics, industryOutlook, earningsInflection) {
+  let score = 45;
+
+  if (Math.abs(stockMetrics.return20d || 0) >= 0.2) score += 16;
+  else if (Math.abs(stockMetrics.return20d || 0) >= 0.1) score += 10;
+  else if (Math.abs(stockMetrics.return20d || 0) >= 0.05) score += 5;
+
+  if ((industryOutlook?.score || 0) >= 78) score += 14;
+  else if ((industryOutlook?.score || 0) >= 64) score += 8;
+  else if ((industryOutlook?.score || 0) <= 40) score += 4;
+
+  if ((earningsInflection?.score || 0) >= 78) score += 10;
+  else if ((earningsInflection?.score || 0) >= 64) score += 6;
+  else if ((earningsInflection?.score || 0) <= 40) score += 4;
+
+  if (stockMetrics.dollarVolume >= 1000000000) score += 6;
+
+  return Math.round(Math.max(0, Math.min(100, score)));
+}
+
+function classifySentiment(score) {
+  if (score >= 78) return "情绪爆发期";
+  if (score >= 64) return "扩散加速";
+  if (score >= 45) return "中性发酵";
+  return "热度偏冷";
+}
+
+function buildSentimentSignals(stockMetrics, industryOutlook, earningsInflection, scores) {
+  return [
+    {
+      title: "Reddit 热度",
+      status: statusFromScore(scores.reddit, "热度升温", "热度偏冷"),
+      confidence: stockMetrics.relativeVolume >= 1.5 ? "偏低" : "低",
+      summary: `基于相对成交量 ${formatRatio(stockMetrics.relativeVolume)}、当日波动 ${formatPercent(stockMetrics.changePercent)} 和成交额推断散户讨论热度；未读取 Reddit 真实帖子数。`,
+    },
+    {
+      title: "X 提及量",
+      status: statusFromScore(scores.x, "传播加速", "传播较弱"),
+      confidence: stockMetrics.relativeVolume >= 1.5 || Math.abs(stockMetrics.changePercent || 0) >= 0.03 ? "偏低" : "低",
+      summary: `基于短线涨跌、5 日趋势 ${formatPercent(stockMetrics.return5d)}、产业评分 ${industryOutlook?.score ?? "暂无"} 和财报评分 ${earningsInflection?.score ?? "暂无"} 推断传播速度；未读取 X 真实提及量。`,
+    },
+    {
+      title: "Google Trends",
+      status: statusFromScore(scores.google, "搜索升温", "搜索偏冷"),
+      confidence: "低",
+      summary: `基于 20 日趋势 ${formatPercent(stockMetrics.return20d)}、产业景气度和财报事件强度推断搜索兴趣；未读取 Google Trends 真实指数。`,
+    },
+  ];
+}
+
+function buildSentimentEvidence(stockMetrics, industryOutlook, earningsInflection, scores) {
+  return [
+    `Reddit 代理分：${scores.reddit}，核心依据是相对成交量、单日波动和成交额。`,
+    `X 代理分：${scores.x}，核心依据是短线价格变化、5 日趋势、产业和财报催化。`,
+    `Google Trends 代理分：${scores.google}，核心依据是 20 日趋势、产业景气度和财报事件强度。`,
+    "当前版本没有接入 Reddit API、X API 或 Google Trends API，因此不展示真实提及量和搜索指数。",
+  ];
+}
+
+function buildSentimentDiffusion(stockMetrics, industryOutlook, earningsInflection) {
+  const scores = {
+    reddit: scoreRedditProxy(stockMetrics),
+    x: scoreXProxy(stockMetrics, industryOutlook, earningsInflection),
+    google: scoreGoogleTrendsProxy(stockMetrics, industryOutlook, earningsInflection),
+  };
+  const score = Math.round(scores.reddit * 0.35 + scores.x * 0.35 + scores.google * 0.3);
+
+  return {
+    score,
+    stage: classifySentiment(score),
+    metrics: scores,
+    signals: buildSentimentSignals(stockMetrics, industryOutlook, earningsInflection, scores),
+    evidence: buildSentimentEvidence(stockMetrics, industryOutlook, earningsInflection, scores),
+  };
+}
+
 function formatPercent(value) {
   return Number.isFinite(value) ? `${(value * 100).toFixed(2)}%` : "暂无";
 }
@@ -824,6 +939,7 @@ module.exports = async function handler(req, res) {
     const qualitativeSignals = buildQualitativeSignals(metrics);
     const industryOutlook = await buildIndustryOutlook(symbol, info, metrics);
     const earningsInflection = await buildEarningsInflection(symbol);
+    const sentimentDiffusion = buildSentimentDiffusion(metrics, industryOutlook, earningsInflection);
 
     res.status(200).json({
       ok: true,
@@ -837,6 +953,7 @@ module.exports = async function handler(req, res) {
       qualitativeSignals,
       industryOutlook,
       earningsInflection,
+      sentimentDiffusion,
       evidence: buildEvidence(metrics, direction),
     });
   } catch (error) {
