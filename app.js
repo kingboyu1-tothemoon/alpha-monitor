@@ -27,6 +27,15 @@ const elements = {
   return5d: document.querySelector("#return5d"),
   return20d: document.querySelector("#return20d"),
   dollarVolume: document.querySelector("#dollarVolume"),
+  industryTheme: document.querySelector("#industryTheme"),
+  industryProxy: document.querySelector("#industryProxy"),
+  industryScore: document.querySelector("#industryScore"),
+  industryStage: document.querySelector("#industryStage"),
+  proxyReturn5d: document.querySelector("#proxyReturn5d"),
+  proxyReturn20d: document.querySelector("#proxyReturn20d"),
+  relativeStrength20: document.querySelector("#relativeStrength20"),
+  stockVsTheme20: document.querySelector("#stockVsTheme20"),
+  industryEvidence: document.querySelector("#industryEvidence"),
   qualitativeList: document.querySelector("#qualitativeList"),
   evidenceList: document.querySelector("#evidenceList"),
 };
@@ -89,11 +98,31 @@ function renderQualitativeSignals(signals) {
   }
 }
 
+function renderIndustryOutlook(outlook) {
+  const metrics = outlook?.metrics || {};
+  elements.industryTheme.textContent = outlook?.theme || "--";
+  elements.industryProxy.textContent = outlook ? `${outlook.proxySymbol} · ${outlook.proxyName}` : "--";
+  elements.industryScore.textContent = Number.isFinite(Number(outlook?.score)) ? outlook.score : "--";
+  elements.industryStage.textContent = outlook?.stage || "--";
+  elements.proxyReturn5d.textContent = formatPercent(metrics.proxyReturn5d);
+  elements.proxyReturn20d.textContent = formatPercent(metrics.proxyReturn20d);
+  elements.relativeStrength20.textContent = formatPercent(metrics.relativeStrength20);
+  elements.stockVsTheme20.textContent = formatPercent(metrics.stockVsTheme20);
+  elements.industryEvidence.innerHTML = "";
+
+  for (const item of outlook?.evidence || []) {
+    const article = document.createElement("article");
+    article.textContent = item;
+    elements.industryEvidence.append(article);
+  }
+}
+
 function renderResult(payload) {
   const metrics = payload.metrics;
   elements.card.hidden = false;
   elements.assetTitle.textContent = payload.symbol;
-  elements.assetMeta.textContent = `${payload.provider || "免费延迟行情"} · ${metrics.date} · ${payload.generatedAt}`;
+  const companyName = payload.companyName ? `${payload.companyName} · ` : "";
+  elements.assetMeta.textContent = `${companyName}${payload.provider || "免费延迟行情"} · ${metrics.date} · ${payload.generatedAt}`;
   elements.flowScore.textContent = payload.score;
   elements.flowDirection.textContent = payload.direction;
   elements.latestClose.textContent = formatPrice(metrics.latestClose);
@@ -104,6 +133,7 @@ function renderResult(payload) {
   elements.return5d.textContent = formatPercent(metrics.return5d);
   elements.return20d.textContent = formatPercent(metrics.return20d);
   elements.dollarVolume.textContent = formatCurrency(metrics.dollarVolume);
+  renderIndustryOutlook(payload.industryOutlook);
   renderQualitativeSignals(payload.qualitativeSignals);
   elements.evidenceList.innerHTML = payload.evidence.map((item) => `<article>${item}</article>`).join("");
 }

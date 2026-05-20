@@ -212,6 +212,84 @@ button:disabled {
   font-size: 22px;
 }
 
+.industry-panel {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fbff;
+}
+
+.industry-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 132px;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.industry-summary > div,
+.industry-metrics article,
+.industry-evidence article {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.industry-summary span,
+.industry-metrics span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.industry-summary strong {
+  display: block;
+  margin-top: 6px;
+  font-size: 22px;
+}
+
+.industry-summary p {
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.industry-score {
+  text-align: center;
+}
+
+.industry-score strong {
+  color: var(--green);
+  font-size: 40px;
+  line-height: 1;
+}
+
+.industry-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.industry-metrics strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 20px;
+}
+
+.industry-evidence {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.industry-evidence article {
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
 .qualitative-panel {
   margin-top: 14px;
 }
@@ -301,6 +379,11 @@ button:disabled {
   }
 
   .metric-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .industry-summary,
+  .industry-metrics {
     grid-template-columns: 1fr;
   }
 

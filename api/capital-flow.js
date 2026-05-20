@@ -8,6 +8,118 @@ const NASDAQ_HEADERS = {
   Referer: "https://www.nasdaq.com/",
 };
 
+const INDUSTRY_THEMES = [
+  {
+    id: "ai-semiconductor",
+    name: "AI 半导体 / 算力基础设施",
+    proxy: "SMH",
+    proxyName: "VanEck Semiconductor ETF",
+    symbols: ["NVDA", "AMD", "AVGO", "MRVL", "MU", "TSM", "ASML", "ARM", "SMCI", "DELL", "HPE", "COHR", "LITE"],
+    keywords: ["semiconductor", "chip", "micro", "advanced micro", "nvidia", "broadcom", "marvell"],
+    drivers: ["AI 训练/推理需求", "GPU 与 ASIC 升级周期", "HBM 与高速互联供需"],
+  },
+  {
+    id: "ai-software-cloud",
+    name: "AI 软件 / 云计算 / 数据基础设施",
+    proxy: "IGV",
+    proxyName: "iShares Expanded Tech-Software ETF",
+    symbols: ["MSFT", "GOOGL", "GOOG", "AMZN", "META", "ORCL", "PLTR", "CRM", "NOW", "SNOW", "DDOG", "MDB", "NET"],
+    keywords: ["software", "cloud", "data", "analytics", "platform", "internet", "alphabet", "microsoft", "oracle"],
+    drivers: ["AI Agent 商业化", "云端推理消耗", "企业软件 AI 加价能力"],
+  },
+  {
+    id: "ev-autonomy",
+    name: "电动车 / 自动驾驶 / 智能制造",
+    proxy: "DRIV",
+    proxyName: "Global X Autonomous & Electric Vehicles ETF",
+    symbols: ["TSLA", "RIVN", "LCID", "NIO", "XPEV", "LI", "GM", "F", "MBLY", "APTV"],
+    keywords: ["electric", "vehicle", "automotive", "motor", "auto", "tesla"],
+    drivers: ["自动驾驶进展", "电动车渗透率", "机器人与制造自动化"],
+  },
+  {
+    id: "power-grid",
+    name: "电力 / 数据中心能源 / 电网设备",
+    proxy: "XLU",
+    proxyName: "Utilities Select Sector SPDR Fund",
+    symbols: ["VST", "CEG", "NRG", "NEE", "DUK", "SO", "GEV", "ETN", "PWR", "HUBB", "GNRC"],
+    keywords: ["utility", "utilities", "electric", "energy", "power", "grid"],
+    drivers: ["数据中心用电增长", "电网升级", "天然气与核电订单"],
+  },
+  {
+    id: "nuclear-uranium",
+    name: "核电 / 铀 / 小型堆",
+    proxy: "URA",
+    proxyName: "Global X Uranium ETF",
+    symbols: ["CCJ", "UEC", "UUUU", "SMR", "OKLO", "LEU"],
+    keywords: ["uranium", "nuclear"],
+    drivers: ["AI 数据中心电力需求", "核电重启", "铀供需缺口"],
+  },
+  {
+    id: "crypto",
+    name: "Crypto / Stablecoin / 链上金融",
+    proxy: "IBIT",
+    proxyName: "iShares Bitcoin Trust",
+    symbols: ["COIN", "MSTR", "HOOD", "RIOT", "MARA", "CLSK", "IREN", "CORZ", "CRCL"],
+    keywords: ["bitcoin", "crypto", "blockchain", "coinbase", "digital asset"],
+    drivers: ["ETF 资金流", "Stablecoin adoption", "链上活跃度与交易量"],
+  },
+  {
+    id: "robotics-automation",
+    name: "机器人 / 自动化",
+    proxy: "BOTZ",
+    proxyName: "Global X Robotics & Artificial Intelligence ETF",
+    symbols: ["ISRG", "SYM", "TER", "ROK", "PATH", "ZBRA", "CGNX"],
+    keywords: ["robot", "automation", "industrial", "surgical"],
+    drivers: ["机器人量产", "工业自动化订单", "AI 视觉与控制系统"],
+  },
+  {
+    id: "cybersecurity",
+    name: "网络安全",
+    proxy: "CIBR",
+    proxyName: "First Trust Nasdaq Cybersecurity ETF",
+    symbols: ["CRWD", "PANW", "ZS", "S", "FTNT", "OKTA", "TENB", "CYBR"],
+    keywords: ["security", "cyber", "firewall", "identity"],
+    drivers: ["企业安全预算", "AI 攻防升级", "云安全需求"],
+  },
+  {
+    id: "biotech",
+    name: "生物科技 / 医药创新",
+    proxy: "XBI",
+    proxyName: "SPDR S&P Biotech ETF",
+    symbols: ["MRNA", "BNTX", "VRTX", "REGN", "BIIB", "GILD", "AMGN", "NTLA", "CRSP"],
+    keywords: ["biotech", "pharmaceutical", "therapeutics", "medicine", "bio"],
+    drivers: ["临床数据", "审批节奏", "并购与管线价值重估"],
+  },
+  {
+    id: "financials",
+    name: "金融 / 资本市场 / Fintech",
+    proxy: "XLF",
+    proxyName: "Financial Select Sector SPDR Fund",
+    symbols: ["JPM", "BAC", "GS", "MS", "V", "MA", "AXP", "PYPL", "SOFI", "SQ"],
+    keywords: ["bank", "financial", "capital", "payments", "credit"],
+    drivers: ["利率周期", "交易活跃度", "信贷质量与支付增长"],
+  },
+  {
+    id: "energy",
+    name: "能源 / 油气",
+    proxy: "XLE",
+    proxyName: "Energy Select Sector SPDR Fund",
+    symbols: ["XOM", "CVX", "COP", "OXY", "SLB", "HAL", "LNG"],
+    keywords: ["oil", "gas", "petroleum", "energy"],
+    drivers: ["油气价格", "资本开支纪律", "地缘风险"],
+  },
+];
+
+const DEFAULT_THEME = {
+  id: "broad-growth",
+  name: "广义成长股 / 纳指风险偏好",
+  proxy: "QQQ",
+  proxyName: "Invesco QQQ Trust",
+  symbols: [],
+  keywords: [],
+  drivers: ["纳指风险偏好", "成长股估值环境", "流动性与利率预期"],
+};
+
 function toNumber(value, fallback = null) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
@@ -58,12 +170,12 @@ async function fetchJson(url) {
   return response.json();
 }
 
-async function fetchNasdaqHistory(symbol) {
+async function fetchNasdaqHistory(symbol, assetClass = "stocks") {
   const toDate = formatDate(new Date());
   const fromDate = formatDate(monthsAgo(7));
   const url = `${NASDAQ_BASE_URL}/${encodeURIComponent(
     symbol
-  )}/historical?assetclass=stocks&fromdate=${fromDate}&todate=${toDate}&limit=200`;
+  )}/historical?assetclass=${assetClass}&fromdate=${fromDate}&todate=${toDate}&limit=200`;
 
   const payload = await fetchJson(url);
   const rows = payload?.data?.tradesTable?.rows || [];
@@ -88,9 +200,26 @@ async function fetchNasdaqHistory(symbol) {
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
-async function fetchHistory(symbol) {
-  const bars = await fetchNasdaqHistory(symbol);
-  return { provider: "Nasdaq Historical", bars };
+async function fetchNasdaqInfo(symbol) {
+  const payload = await fetchJson(`${NASDAQ_BASE_URL}/${encodeURIComponent(symbol)}/info?assetclass=stocks`);
+  return {
+    companyName: payload?.data?.companyName || "",
+    stockType: payload?.data?.stockType || "",
+    exchange: payload?.data?.exchange || "",
+  };
+}
+
+async function fetchHistory(symbol, assetClass = "stocks") {
+  let bars = await fetchNasdaqHistory(symbol, assetClass);
+
+  if (!bars.length && assetClass === "stocks") {
+    bars = await fetchNasdaqHistory(symbol, "etf");
+  }
+
+  return {
+    provider: assetClass === "etf" ? "Nasdaq ETF Historical" : "Nasdaq Historical",
+    bars,
+  };
 }
 
 function average(values) {
@@ -296,6 +425,118 @@ function buildQualitativeSignals(metrics) {
   ];
 }
 
+function inferIndustryTheme(symbol, info) {
+  const companyName = String(info?.companyName || "").toLowerCase();
+
+  for (const theme of INDUSTRY_THEMES) {
+    if (theme.symbols.includes(symbol)) return theme;
+  }
+
+  for (const theme of INDUSTRY_THEMES) {
+    if (theme.keywords.some((keyword) => companyName.includes(keyword))) return theme;
+  }
+
+  return DEFAULT_THEME;
+}
+
+function scoreIndustryOutlook(themeMetrics, benchmarkMetrics, stockMetrics) {
+  const relativeStrength20 = (themeMetrics.return20d || 0) - (benchmarkMetrics.return20d || 0);
+  const stockVsTheme20 = (stockMetrics.return20d || 0) - (themeMetrics.return20d || 0);
+  let score = 50;
+
+  if (themeMetrics.return20d >= 0.15) score += 18;
+  else if (themeMetrics.return20d >= 0.08) score += 12;
+  else if (themeMetrics.return20d >= 0.03) score += 6;
+  else if (themeMetrics.return20d <= -0.12) score -= 16;
+  else if (themeMetrics.return20d <= -0.05) score -= 9;
+
+  if (themeMetrics.return5d >= 0.06) score += 12;
+  else if (themeMetrics.return5d >= 0.025) score += 7;
+  else if (themeMetrics.return5d > 0) score += 3;
+  else if (themeMetrics.return5d <= -0.06) score -= 12;
+  else if (themeMetrics.return5d <= -0.025) score -= 7;
+
+  if (relativeStrength20 >= 0.08) score += 14;
+  else if (relativeStrength20 >= 0.03) score += 8;
+  else if (relativeStrength20 <= -0.08) score -= 14;
+  else if (relativeStrength20 <= -0.03) score -= 8;
+
+  if (themeMetrics.relativeVolume >= 1.5) score += 8;
+  else if (themeMetrics.relativeVolume >= 1.15) score += 4;
+  else if (themeMetrics.relativeVolume < 0.75) score -= 4;
+
+  if (stockVsTheme20 >= 0.08) score += 8;
+  else if (stockVsTheme20 >= 0.03) score += 4;
+  else if (stockVsTheme20 <= -0.08) score -= 8;
+  else if (stockVsTheme20 <= -0.03) score -= 4;
+
+  return {
+    score: Math.round(Math.max(0, Math.min(100, score))),
+    relativeStrength20,
+    stockVsTheme20,
+  };
+}
+
+function classifyIndustry(score) {
+  if (score >= 78) return "产业加速期";
+  if (score >= 64) return "景气改善";
+  if (score >= 45) return "中性观察";
+  return "景气降温";
+}
+
+function buildIndustryEvidence(theme, themeMetrics, benchmarkMetrics, stockMetrics, scored) {
+  return [
+    `${theme.proxy} 近 20 日趋势：${formatPercent(themeMetrics.return20d)}，近 5 日趋势：${formatPercent(themeMetrics.return5d)}`,
+    `${theme.proxy} 相对成交量：${formatRatio(themeMetrics.relativeVolume)}，用于观察产业资金关注度`,
+    `相对 QQQ 20 日强弱：${formatPercent(scored.relativeStrength20)}，判断该产业是否跑赢成长股基准`,
+    `个股相对产业代理 20 日强弱：${formatPercent(scored.stockVsTheme20)}，判断标的是否是板块内强势股`,
+    `主要观察变量：${theme.drivers.join(" / ")}`,
+  ];
+}
+
+async function buildIndustryOutlook(symbol, info, stockMetrics) {
+  const theme = inferIndustryTheme(symbol, info);
+  const [themeHistory, benchmarkHistory] = await Promise.all([
+    fetchHistory(theme.proxy, "etf"),
+    fetchHistory("QQQ", "etf"),
+  ]);
+
+  if (themeHistory.bars.length < 25 || benchmarkHistory.bars.length < 25) {
+    return {
+      theme: theme.name,
+      proxySymbol: theme.proxy,
+      proxyName: theme.proxyName,
+      score: 50,
+      stage: "数据不足",
+      metrics: null,
+      evidence: ["暂时没有拿到足够的行业代理行情，产业景气度维持中性。"],
+    };
+  }
+
+  const themeMetrics = summarizeCapitalFlow(themeHistory.bars);
+  const benchmarkMetrics = summarizeCapitalFlow(benchmarkHistory.bars);
+  const scored = scoreIndustryOutlook(themeMetrics, benchmarkMetrics, stockMetrics);
+  const stage = classifyIndustry(scored.score);
+
+  return {
+    theme: theme.name,
+    proxySymbol: theme.proxy,
+    proxyName: theme.proxyName,
+    score: scored.score,
+    stage,
+    metrics: {
+      proxyReturn5d: themeMetrics.return5d,
+      proxyReturn20d: themeMetrics.return20d,
+      proxyRelativeVolume: themeMetrics.relativeVolume,
+      benchmarkSymbol: "QQQ",
+      benchmarkReturn20d: benchmarkMetrics.return20d,
+      relativeStrength20: scored.relativeStrength20,
+      stockVsTheme20: scored.stockVsTheme20,
+    },
+    evidence: buildIndustryEvidence(theme, themeMetrics, benchmarkMetrics, stockMetrics, scored),
+  };
+}
+
 function formatPercent(value) {
   return Number.isFinite(value) ? `${(value * 100).toFixed(2)}%` : "暂无";
 }
@@ -324,7 +565,10 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const { provider, bars } = await fetchHistory(symbol);
+    const [{ provider, bars }, info] = await Promise.all([
+      fetchHistory(symbol),
+      fetchNasdaqInfo(symbol).catch(() => ({ companyName: "", stockType: "", exchange: "" })),
+    ]);
 
     if (bars.length < 25) {
       res.status(404).json({
@@ -340,16 +584,19 @@ module.exports = async function handler(req, res) {
     const score = scoreCapitalFlow(metrics);
     const direction = classifyFlow(score, metrics);
     const qualitativeSignals = buildQualitativeSignals(metrics);
+    const industryOutlook = await buildIndustryOutlook(symbol, info, metrics);
 
     res.status(200).json({
       ok: true,
       provider,
       symbol,
+      companyName: info.companyName,
       generatedAt: new Date().toISOString(),
       score,
       direction,
       metrics,
       qualitativeSignals,
+      industryOutlook,
       evidence: buildEvidence(metrics, direction),
     });
   } catch (error) {
