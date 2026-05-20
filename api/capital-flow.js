@@ -8,6 +8,26 @@ const NASDAQ_HEADERS = {
   Referer: "https://www.nasdaq.com/",
 };
 
+const EASTMONEY_HEADERS = {
+  Accept: "application/json",
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36",
+  Referer: "https://quote.eastmoney.com/",
+};
+
+const A_SHARE_ALIASES = {
+  贵州茅台: "600519",
+  宁德时代: "300750",
+  比亚迪: "002594",
+  中芯国际: "688981",
+  招商银行: "600036",
+  平安银行: "000001",
+  五粮液: "000858",
+  东方财富: "300059",
+  迈瑞医疗: "300760",
+  工业富联: "601138",
+};
+
 const INDUSTRY_THEMES = [
   {
     id: "ai-semiconductor",
@@ -148,6 +168,32 @@ function normalizeSymbol(value) {
     .replace("/", "-");
 }
 
+function resolveChinaSymbol(value) {
+  const raw = String(value || "").trim().toUpperCase().replace(/\s/g, "");
+  const aliased = A_SHARE_ALIASES[raw] || raw;
+  let match = aliased.match(/^(SH|SSE)(\d{6})$/);
+  if (match) return { code: match[2], marketId: 1, exchange: "SH", secid: `1.${match[2]}` };
+
+  match = aliased.match(/^(SZ|SZSE)(\d{6})$/);
+  if (match) return { code: match[2], marketId: 0, exchange: "SZ", secid: `0.${match[2]}` };
+
+  match = aliased.match(/^(\d{6})\.(SH|SS|SSE)$/);
+  if (match) return { code: match[1], marketId: 1, exchange: "SH", secid: `1.${match[1]}` };
+
+  match = aliased.match(/^(\d{6})\.(SZ|SZSE)$/);
+  if (match) return { code: match[1], marketId: 0, exchange: "SZ", secid: `0.${match[1]}` };
+
+  if (!/^\d{6}$/.test(aliased)) return null;
+
+  const marketId = /^(600|601|603|605|688|689|900)/.test(aliased) ? 1 : 0;
+  return {
+    code: aliased,
+    marketId,
+    exchange: marketId === 1 ? "SH" : "SZ",
+    secid: `${marketId}.${aliased}`,
+  };
+}
+
 function formatDate(date) {
   return date.toISOString().slice(0, 10);
 }
@@ -169,6 +215,16 @@ async function fetchJson(url) {
 
   if (!response.ok) {
     throw new Error(`Nasdaq request failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+async function fetchEastmoneyJson(url) {
+  const response = await fetch(url, { headers: EASTMONEY_HEADERS });
+
+  if (!response.ok) {
+    throw new Error(`Eastmoney request failed: ${response.status}`);
   }
 
   return response.json();
@@ -219,6 +275,62 @@ async function fetchNasdaqFinancials(symbol, frequency = 2) {
 
 async function fetchNasdaqEarningsCalendar(symbol) {
   return fetchJson(`https://api.nasdaq.com/api/calendar/earnings?symbol=${encodeURIComponent(symbol)}`);
+}
+
+async function fetchChinaInfo(chinaSymbol) {
+  const payload = await fetchEastmoneyJson(
+    `https://push2.eastmoney.com/api/qt/stock/get?secid=${encodeURIComponent(
+      chinaSymbol.secid
+    )}&fields=f57,f58,f107,f116,f117,f162`
+  );
+  const data = payload?.data || {};
+
+  return {
+    companyName: data.f58 || chinaSymbol.code,
+    stockType: "A Share",
+    exchange: chinaSymbol.exchange,
+    marketCap: toNumber(data.f116),
+  };
+}
+
+async function fetchChinaHistoryBySecid(secid) {
+  const payload = await fetchEastmoneyJson(
+    `https://push2his.eastmoney.com/api/qt/stock/kline/get?secid=${encodeURIComponent(
+      secid
+    )}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61&klt=101&fqt=1&beg=20250101&end=20500101`
+  );
+  const klines = payload?.data?.klines || [];
+
+  return klines
+    .map((line) => {
+      const [date, open, close, high, low, volume, amount] = String(line).split(",");
+      return {
+        date,
+        open: parseMarketNumber(open),
+        high: parseMarketNumber(high),
+        low: parseMarketNumber(low),
+        close: parseMarketNumber(close),
+        volume: parseMarketNumber(volume),
+        amount: parseMarketNumber(amount),
+      };
+    })
+    .filter(
+      (bar) =>
+        bar.date &&
+        Number.isFinite(bar.close) &&
+        Number.isFinite(bar.volume) &&
+        bar.close > 0 &&
+        bar.volume >= 0
+    )
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+async function fetchChinaHistory(chinaSymbol) {
+  const bars = await fetchChinaHistoryBySecid(chinaSymbol.secid);
+  return {
+    provider: "Eastmoney A-share Daily",
+    bars,
+  };
 }
 
 async function fetchHistory(symbol, assetClass = "stocks") {
@@ -277,7 +389,7 @@ function summarizeCapitalFlow(bars) {
     return5d: getReturn(bars, 5),
     return20d: getReturn(bars, 20),
     volatility20d: average(recent20Returns),
-    dollarVolume: latest.close * latest.volume,
+    dollarVolume: Number.isFinite(latest.amount) ? latest.amount : latest.close * latest.volume,
     dataPoints: bars.length,
   };
 }
@@ -549,6 +661,125 @@ async function buildIndustryOutlook(symbol, info, stockMetrics) {
   };
 }
 
+function getChinaTheme(chinaSymbol, info) {
+  const code = chinaSymbol.code;
+  if (["300750", "002594"].includes(code)) {
+    return {
+      theme: "A股新能源 / 电动车产业链",
+      proxySecid: "0.399006",
+      proxySymbol: "创业板指",
+      proxyName: "成长制造代理",
+      drivers: ["新能源车渗透率", "锂电材料价格", "出海订单与毛利率"],
+    };
+  }
+
+  if (["688981", "601138"].includes(code) || code.startsWith("688")) {
+    return {
+      theme: "A股半导体 / 科创硬科技",
+      proxySecid: "1.000688",
+      proxySymbol: "科创50",
+      proxyName: "科创硬科技代理",
+      drivers: ["国产替代", "AI 算力链", "半导体周期复苏"],
+    };
+  }
+
+  if (["600519", "000858"].includes(code)) {
+    return {
+      theme: "A股消费 / 白酒龙头",
+      proxySecid: "1.000300",
+      proxySymbol: "沪深300",
+      proxyName: "大盘蓝筹代理",
+      drivers: ["消费复苏", "渠道库存", "高端消费信心"],
+    };
+  }
+
+  if (["600036", "000001"].includes(code)) {
+    return {
+      theme: "A股金融 / 银行",
+      proxySecid: "1.000300",
+      proxySymbol: "沪深300",
+      proxyName: "大盘金融权重代理",
+      drivers: ["利率周期", "息差变化", "资产质量"],
+    };
+  }
+
+  if (code.startsWith("300")) {
+    return {
+      theme: "A股创业板成长",
+      proxySecid: "0.399006",
+      proxySymbol: "创业板指",
+      proxyName: "创业板成长代理",
+      drivers: ["成长股风险偏好", "产业政策", "资金轮动"],
+    };
+  }
+
+  if (code.startsWith("688")) {
+    return {
+      theme: "A股科创板",
+      proxySecid: "1.000688",
+      proxySymbol: "科创50",
+      proxyName: "科创板代理",
+      drivers: ["硬科技估值", "国产替代", "科创资金偏好"],
+    };
+  }
+
+  return {
+    theme: "A股宽基市场",
+    proxySecid: "1.000300",
+    proxySymbol: "沪深300",
+    proxyName: "A股核心资产代理",
+    drivers: ["A股风险偏好", "人民币流动性", "北向/机构资金偏好"],
+  };
+}
+
+async function buildChinaIndustryOutlook(chinaSymbol, info, stockMetrics) {
+  const theme = getChinaTheme(chinaSymbol, info);
+  const [themeBars, benchmarkBars] = await Promise.all([
+    fetchChinaHistoryBySecid(theme.proxySecid).catch(() => []),
+    fetchChinaHistoryBySecid("1.000300").catch(() => []),
+  ]);
+
+  if (themeBars.length < 25 || benchmarkBars.length < 25) {
+    return {
+      theme: theme.theme,
+      proxySymbol: theme.proxySymbol,
+      proxyName: theme.proxyName,
+      score: 50,
+      stage: "数据不足",
+      metrics: null,
+      evidence: ["暂时没有拿到足够的 A 股行业代理行情，产业景气度维持中性。"],
+    };
+  }
+
+  const themeMetrics = summarizeCapitalFlow(themeBars);
+  const benchmarkMetrics = summarizeCapitalFlow(benchmarkBars);
+  const scored = scoreIndustryOutlook(themeMetrics, benchmarkMetrics, stockMetrics);
+
+  return {
+    theme: theme.theme,
+    proxySymbol: theme.proxySymbol,
+    proxyName: theme.proxyName,
+    score: scored.score,
+    stage: classifyIndustry(scored.score),
+    metrics: {
+      proxyReturn5d: themeMetrics.return5d,
+      proxyReturn20d: themeMetrics.return20d,
+      proxyRelativeVolume: themeMetrics.relativeVolume,
+      benchmarkSymbol: "沪深300",
+      benchmarkReturn20d: benchmarkMetrics.return20d,
+      relativeStrength20: scored.relativeStrength20,
+      stockVsTheme20: scored.stockVsTheme20,
+    },
+    evidence: [
+      `${theme.proxySymbol} 近 20 日趋势：${formatPercent(themeMetrics.return20d)}，近 5 日趋势：${formatPercent(themeMetrics.return5d)}`,
+      `${theme.proxySymbol} 相对成交量：${formatRatio(themeMetrics.relativeVolume)}，用于观察 A 股主题资金关注度`,
+      `相对沪深300 20 日强弱：${formatPercent(scored.relativeStrength20)}，判断主题是否跑赢 A 股核心资产`,
+      `个股相对主题代理 20 日强弱：${formatPercent(scored.stockVsTheme20)}，判断标的是否是板块内强势股`,
+      `主要观察变量：${theme.drivers.join(" / ")}`,
+    ],
+  };
+}
+
 function getFinancialPeriods(table) {
   const headers = table?.headers || {};
   return Object.entries(headers)
@@ -775,6 +1006,55 @@ async function buildEarningsInflection(symbol) {
   };
 }
 
+function buildChinaEarningsInflection() {
+  const metrics = {
+    hasFinancials: false,
+    hasCalendar: false,
+    latestQuarter: "",
+    latestRevenue: null,
+    latestRevenueGrowth: null,
+    previousRevenueGrowth: null,
+    revenueAcceleration: null,
+    latestGrossMargin: null,
+    previousGrossMargin: null,
+    grossMarginExpansion: null,
+    epsForecastGrowth: null,
+    revenueScore: 50,
+    guidanceScore: 50,
+    marginScore: 50,
+  };
+
+  return {
+    score: 50,
+    stage: "A股财报待接入",
+    metrics,
+    signals: [
+      {
+        title: "Revenue acceleration",
+        status: "数据待接入",
+        confidence: "低",
+        summary: "当前 A 股分支先接入价格和成交量，季度收入加速后续可通过东方财富/巨潮财报数据补上。",
+      },
+      {
+        title: "Guidance",
+        status: "数据待接入",
+        confidence: "低",
+        summary: "A 股管理层指引通常需要公告/业绩预告文本解析，当前版本暂不伪造结论。",
+      },
+      {
+        title: "Margin expansion",
+        status: "数据待接入",
+        confidence: "低",
+        summary: "毛利率扩张需要利润表数据，当前 A 股版本先维持中性。",
+      },
+    ],
+    evidence: [
+      "A 股财报拐点模块暂未接入利润表和业绩预告文本。",
+      "综合评分中财报维度暂按 50 分中性处理。",
+    ],
+  };
+}
+
 function scoreRedditProxy(stockMetrics) {
   let score = 45;
 
@@ -947,6 +1227,7 @@ function buildEvidence(metrics, direction) {
 
 module.exports = async function handler(req, res) {
   const symbol = normalizeSymbol(req.query?.symbol);
+  const chinaSymbol = resolveChinaSymbol(req.query?.symbol);
 
   if (!symbol) {
     res.status(400).json({ ok: false, error: "请输入股票代码。" });
@@ -954,6 +1235,64 @@ module.exports = async function handler(req, res) {
   }
 
   try {
+    if (chinaSymbol) {
+      const [{ provider, bars }, info] = await Promise.all([
+        fetchChinaHistory(chinaSymbol),
+        fetchChinaInfo(chinaSymbol).catch(() => ({
+          companyName: chinaSymbol.code,
+          stockType: "A Share",
+          exchange: chinaSymbol.exchange,
+        })),
+      ]);
+
+      if (bars.length < 25) {
+        res.status(404).json({
+          ok: false,
+          symbol: chinaSymbol.code,
+          error: "暂时没有找到足够的 A 股免费行情数据。",
+          hint: "请确认代码是否为 A 股 6 位代码，例如 600519、300750、000001。",
+        });
+        return;
+      }
+
+      const metrics = summarizeCapitalFlow(bars);
+      const score = scoreCapitalFlow(metrics);
+      const direction = classifyFlow(score, metrics);
+      const qualitativeSignals = buildQualitativeSignals(metrics);
+      const industryOutlook = await buildChinaIndustryOutlook(chinaSymbol, info, metrics);
+      const earningsInflection = buildChinaEarningsInflection();
+      const sentimentDiffusion = buildSentimentDiffusion(metrics, industryOutlook, earningsInflection);
+      const composite = buildCompositeScore(score, industryOutlook, earningsInflection, sentimentDiffusion);
+
+      res.status(200).json({
+        ok: true,
+        provider,
+        market: "CN",
+        currency: "CNY",
+        symbol: chinaSymbol.code,
+        displaySymbol: `${chinaSymbol.code}.${chinaSymbol.exchange}`,
+        companyName: info.companyName,
+        generatedAt: new Date().toISOString(),
+        totalScore: composite.totalScore,
+        totalStage: composite.stage,
+        scoreWeights: composite.weights,
+        componentScores: composite.components,
+        score,
+        direction,
+        metrics,
+        qualitativeSignals,
+        industryOutlook,
+        earningsInflection,
+        sentimentDiffusion,
+        evidence: [
+          `A 股数据源：东方财富免费延迟行情。`,
+          ...buildEvidence(metrics, direction),
+          "A 股期权/暗池/逐笔大单和财报文本暂未接入，相关模块为代理或中性处理。",
+        ],
+      });
+      return;
+    }
+
     const [{ provider, bars }, info] = await Promise.all([
       fetchHistory(symbol),
       fetchNasdaqInfo(symbol).catch(() => ({ companyName: "", stockType: "", exchange: "" })),
@@ -981,7 +1320,10 @@ module.exports = async function handler(req, res) {
     res.status(200).json({
       ok: true,
       provider,
+      market: "US",
+      currency: "USD",
       symbol,
+      displaySymbol: symbol,
       companyName: info.companyName,
       generatedAt: new Date().toISOString(),
       totalScore: composite.totalScore,

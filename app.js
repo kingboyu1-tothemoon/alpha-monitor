@@ -8,6 +8,14 @@ const aliases = {
   PALANTIR: "PLTR",
   META: "META",
   AMAZON: "AMZN",
+  贵州茅台: "600519",
+  宁德时代: "300750",
+  比亚迪: "002594",
+  中芯国际: "688981",
+  招商银行: "600036",
+  平安银行: "000001",
+  五粮液: "000858",
+  东方财富: "300059",
 };
 
 const elements = {
@@ -67,18 +75,20 @@ function formatNumber(value) {
   return Number.isFinite(Number(value)) ? Math.round(Number(value)).toLocaleString("en-US") : "--";
 }
 
-function formatCurrency(value) {
+function formatCurrency(value, currency = "USD") {
   const number = Number(value);
   if (!Number.isFinite(number)) return "--";
+  const prefix = currency === "CNY" ? "¥" : "$";
 
-  if (Math.abs(number) >= 1000000000) return `$${(number / 1000000000).toFixed(2)}B`;
-  if (Math.abs(number) >= 1000000) return `$${(number / 1000000).toFixed(2)}M`;
-  return `$${number.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+  if (Math.abs(number) >= 1000000000) return `${prefix}${(number / 1000000000).toFixed(2)}B`;
+  if (Math.abs(number) >= 1000000) return `${prefix}${(number / 1000000).toFixed(2)}M`;
+  return `${prefix}${number.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
 }
 
-function formatPrice(value) {
+function formatPrice(value, currency = "USD") {
   const number = Number(value);
-  return Number.isFinite(number) ? `$${number.toFixed(2)}` : "--";
+  const prefix = currency === "CNY" ? "¥" : "$";
+  return Number.isFinite(number) ? `${prefix}${number.toFixed(2)}` : "--";
 }
 
 function formatPercent(value) {
@@ -197,21 +207,22 @@ function renderSentimentDiffusion(diffusion) {
 
 function renderResult(payload) {
   const metrics = payload.metrics;
+  const currency = payload.currency || "USD";
   elements.card.hidden = false;
-  elements.assetTitle.textContent = payload.symbol;
+  elements.assetTitle.textContent = payload.displaySymbol || payload.symbol;
   const companyName = payload.companyName ? `${payload.companyName} · ` : "";
   elements.assetMeta.textContent = `${companyName}${payload.provider || "免费延迟行情"} · ${metrics.date} · ${payload.generatedAt}`;
   elements.flowScore.textContent = Number.isFinite(Number(payload.totalScore)) ? payload.totalScore : payload.score;
   elements.totalStage.textContent = payload.totalStage || payload.direction;
   elements.capitalScore.textContent = payload.score;
-  elements.latestClose.textContent = formatPrice(metrics.latestClose);
+  elements.latestClose.textContent = formatPrice(metrics.latestClose, currency);
   elements.changePercent.textContent = formatPercent(metrics.changePercent);
   elements.relativeVolume.textContent = formatRatio(metrics.relativeVolume);
   elements.latestVolume.textContent = formatNumber(metrics.latestVolume);
   elements.avg20Volume.textContent = formatNumber(metrics.avg20Volume);
   elements.return5d.textContent = formatPercent(metrics.return5d);
   elements.return20d.textContent = formatPercent(metrics.return20d);
-  elements.dollarVolume.textContent = formatCurrency(metrics.dollarVolume);
+  elements.dollarVolume.textContent = formatCurrency(metrics.dollarVolume, currency);
   renderIndustryOutlook(payload.industryOutlook);
   renderEarningsInflection(payload.earningsInflection);
   renderSentimentDiffusion(payload.sentimentDiffusion);
