@@ -57,6 +57,10 @@ const elements = {
   earningsEvidence: document.querySelector("#earningsEvidence"),
   sentimentStage: document.querySelector("#sentimentStage"),
   sentimentScore: document.querySelector("#sentimentScore"),
+  sentimentPlatforms: document.querySelector("#sentimentPlatforms"),
+  redditProxyLabel: document.querySelector("#redditProxyLabel"),
+  xProxyLabel: document.querySelector("#xProxyLabel"),
+  googleProxyLabel: document.querySelector("#googleProxyLabel"),
   redditProxyScore: document.querySelector("#redditProxyScore"),
   xProxyScore: document.querySelector("#xProxyScore"),
   googleProxyScore: document.querySelector("#googleProxyScore"),
@@ -190,8 +194,17 @@ function renderEarningsInflection(inflection) {
 
 function renderSentimentDiffusion(diffusion) {
   const metrics = diffusion?.metrics || {};
+  const platformScores = diffusion?.platformScores || [];
+  const reddit = platformScores.find((item) => item.key === "reddit");
+  const x = platformScores.find((item) => item.key === "x");
+  const google = platformScores.find((item) => item.key === "google");
+
   elements.sentimentStage.textContent = diffusion?.stage || "--";
   elements.sentimentScore.textContent = Number.isFinite(Number(diffusion?.score)) ? diffusion.score : "--";
+  elements.sentimentPlatforms.textContent = diffusion?.platforms || "Reddit / X / Google Trends";
+  elements.redditProxyLabel.textContent = reddit?.label || "Reddit 热度代理";
+  elements.xProxyLabel.textContent = x?.label || "X 提及代理";
+  elements.googleProxyLabel.textContent = google?.label || "Google Trends 代理";
   elements.redditProxyScore.textContent = Number.isFinite(Number(metrics.reddit)) ? metrics.reddit : "--";
   elements.xProxyScore.textContent = Number.isFinite(Number(metrics.x)) ? metrics.x : "--";
   elements.googleProxyScore.textContent = Number.isFinite(Number(metrics.google)) ? metrics.google : "--";

@@ -15,6 +15,8 @@ const EASTMONEY_HEADERS = {
   Referer: "https://quote.eastmoney.com/",
 };
 
+const EASTMONEY_SUGGEST_TOKEN = "D43BF722C8E33BDC906FB84D85E326E8";
+
 const A_SHARE_ALIASES = {
   贵州茅台: "600519",
   宁德时代: "300750",
@@ -194,6 +196,22 @@ function resolveChinaSymbol(value) {
   };
 }
 
+function chinaSymbolFromQuoteId(quoteId, fallbackCode, fallbackName = "") {
+  const [marketText, code] = String(quoteId || "").split(".");
+  const parsedMarket = Number(marketText);
+  const resolvedCode = code || fallbackCode;
+
+  if (!/^\d{6}$/.test(resolvedCode) || ![0, 1].includes(parsedMarket)) return null;
+
+  return {
+    code: resolvedCode,
+    marketId: parsedMarket,
+    exchange: parsedMarket === 1 ? "SH" : "SZ",
+    secid: `${parsedMarket}.${resolvedCode}`,
+    matchedName: fallbackName,
+  };
+}
+
 function formatDate(date) {
   return date.toISOString().slice(0, 10);
 }
@@ -228,6 +246,23 @@ async function fetchEastmoneyJson(url) {
   }
 
   return response.json();
+}
+
+async function searchChinaSymbol(value) {
+  const keyword = String(value || "").trim();
+  if (!keyword || /^[A-Z.-]{1,8}$/i.test(keyword)) return null;
+
+  const payload = await fetchEastmoneyJson(
+    `https://searchapi.eastmoney.com/api/suggest/get?input=${encodeURIComponent(
+      keyword
+    )}&type=14&token=${EASTMONEY_SUGGEST_TOKEN}`
+  );
+  const candidates = payload?.QuotationCodeTable?.Data || [];
+  const match = candidates.find((item) => item?.Classify === "AStock" && item?.QuoteID && item?.Code);
+
+  if (!match) return null;
+
+  return chinaSymbolFromQuoteId(match.QuoteID, match.Code, match.Name);
 }
 
 async function fetchNasdaqHistory(symbol, assetClass = "stocks") {
@@ -1121,39 +1156,71 @@ function classifySentiment(score) {
   return "热度偏冷";
 }
 
-function buildSentimentSignals(stockMetrics, industryOutlook, earningsInflection, scores) {
+function getSentimentPlatforms(market) {
+  if (market === "CN") {
+    return {
+      reddit: "东方财富股吧热度",
+      x: "雪球/社媒讨论",
+      google: "百度指数搜索",
+      summary: "股吧 / 雪球 / 百度指数",
+    };
+  }
+
+  return {
+    reddit: "Reddit 热度",
+    x: "X 提及量",
+    google: "Google Trends",
+    summary: "Reddit / X / Google Trends",
+  };
+}
+
+function buildSentimentSignals(stockMetrics, industryOutlook, earningsInflection, scores, market = "US") {
+  const platforms = getSentimentPlatforms(market);
   return [
     {
-      title: "Reddit 热度",
+      title: platforms.reddit,
       status: statusFromScore(scores.reddit, "热度升温", "热度偏冷"),
       confidence: stockMetrics.relativeVolume >= 1.5 ? "偏低" : "低",
-      summary: `基于相对成交量 ${formatRatio(stockMetrics.relativeVolume)}、当日波动 ${formatPercent(stockMetrics.changePercent)} 和成交额推断散户讨论热度；未读取 Reddit 真实帖子数。`,
+      summary:
+        market === "CN"
+          ? `基于相对成交量 ${formatRatio(stockMetrics.relativeVolume)}、当日波动 ${formatPercent(stockMetrics.changePercent)} 和成交额推断股吧讨论热度；未读取东方财富股吧真实帖子数。`
+          : `基于相对成交量 ${formatRatio(stockMetrics.relativeVolume)}、当日波动 ${formatPercent(stockMetrics.changePercent)} 和成交额推断散户讨论热度；未读取 Reddit 真实帖子数。`,
     },
     {
-      title: "X 提及量",
+      title: platforms.x,
       status: statusFromScore(scores.x, "传播加速", "传播较弱"),
       confidence: stockMetrics.relativeVolume >= 1.5 || Math.abs(stockMetrics.changePercent || 0) >= 0.03 ? "偏低" : "低",
-      summary: `基于短线涨跌、5 日趋势 ${formatPercent(stockMetrics.return5d)}、产业评分 ${industryOutlook?.score ?? "暂无"} 和财报评分 ${earningsInflection?.score ?? "暂无"} 推断传播速度；未读取 X 真实提及量。`,
+      summary:
+        market === "CN"
+          ? `基于短线涨跌、5 日趋势 ${formatPercent(stockMetrics.return5d)}、产业评分 ${industryOutlook?.score ?? "暂无"} 和财报评分 ${earningsInflection?.score ?? "暂无"} 推断雪球/社媒传播速度；未读取雪球真实讨论量。`
+          : `基于短线涨跌、5 日趋势 ${formatPercent(stockMetrics.return5d)}、产业评分 ${industryOutlook?.score ?? "暂无"} 和财报评分 ${earningsInflection?.score ?? "暂无"} 推断传播速度；未读取 X 真实提及量。`,
     },
     {
-      title: "Google Trends",
+      title: platforms.google,
       status: statusFromScore(scores.google, "搜索升温", "搜索偏冷"),
       confidence: "低",
-      summary: `基于 20 日趋势 ${formatPercent(stockMetrics.return20d)}、产业景气度和财报事件强度推断搜索兴趣；未读取 Google Trends 真实指数。`,
+      summary:
+        market === "CN"
+          ? `基于 20 日趋势 ${formatPercent(stockMetrics.return20d)}、产业景气度和财报事件强度推断百度搜索兴趣；未读取百度指数真实数据。`
+          : `基于 20 日趋势 ${formatPercent(stockMetrics.return20d)}、产业景气度和财报事件强度推断搜索兴趣；未读取 Google Trends 真实指数。`,
     },
   ];
 }
 
-function buildSentimentEvidence(stockMetrics, industryOutlook, earningsInflection, scores) {
+function buildSentimentEvidence(stockMetrics, industryOutlook, earningsInflection, scores, market = "US") {
+  const platforms = getSentimentPlatforms(market);
   return [
-    `Reddit 代理分：${scores.reddit}，核心依据是相对成交量、单日波动和成交额。`,
-    `X 代理分：${scores.x}，核心依据是短线价格变化、5 日趋势、产业和财报催化。`,
-    `Google Trends 代理分：${scores.google}，核心依据是 20 日趋势、产业景气度和财报事件强度。`,
-    "当前版本没有接入 Reddit API、X API 或 Google Trends API，因此不展示真实提及量和搜索指数。",
+    `${platforms.reddit}代理分：${scores.reddit}，核心依据是相对成交量、单日波动和成交额。`,
+    `${platforms.x}代理分：${scores.x}，核心依据是短线价格变化、5 日趋势、产业和财报催化。`,
+    `${platforms.google}代理分：${scores.google}，核心依据是 20 日趋势、产业景气度和财报事件强度。`,
+    market === "CN"
+      ? "当前 A 股版本没有接入东方财富股吧、雪球或百度指数 API，因此不展示真实帖子数、讨论量和搜索指数。"
+      : "当前美股版本没有接入 Reddit API、X API 或 Google Trends API，因此不展示真实提及量和搜索指数。",
   ];
 }
 
-function buildSentimentDiffusion(stockMetrics, industryOutlook, earningsInflection) {
+function buildSentimentDiffusion(stockMetrics, industryOutlook, earningsInflection, market = "US") {
+  const platforms = getSentimentPlatforms(market);
   const scores = {
     reddit: scoreRedditProxy(stockMetrics),
     x: scoreXProxy(stockMetrics, industryOutlook, earningsInflection),
@@ -1165,8 +1232,14 @@ function buildSentimentDiffusion(stockMetrics, industryOutlook, earningsInflecti
     score,
     stage: classifySentiment(score),
     metrics: scores,
-    signals: buildSentimentSignals(stockMetrics, industryOutlook, earningsInflection, scores),
-    evidence: buildSentimentEvidence(stockMetrics, industryOutlook, earningsInflection, scores),
+    platforms: platforms.summary,
+    platformScores: [
+      { key: "reddit", label: platforms.reddit, score: scores.reddit },
+      { key: "x", label: platforms.x, score: scores.x },
+      { key: "google", label: platforms.google, score: scores.google },
+    ],
+    signals: buildSentimentSignals(stockMetrics, industryOutlook, earningsInflection, scores, market),
+    evidence: buildSentimentEvidence(stockMetrics, industryOutlook, earningsInflection, scores, market),
   };
 }
 
@@ -1227,7 +1300,6 @@ function buildEvidence(metrics, direction) {
 
 module.exports = async function handler(req, res) {
   const symbol = normalizeSymbol(req.query?.symbol);
-  const chinaSymbol = resolveChinaSymbol(req.query?.symbol);
 
   if (!symbol) {
     res.status(400).json({ ok: false, error: "请输入股票代码。" });
@@ -1235,6 +1307,8 @@ module.exports = async function handler(req, res) {
   }
 
   try {
+    const chinaSymbol = resolveChinaSymbol(req.query?.symbol) || (await searchChinaSymbol(req.query?.symbol).catch(() => null));
+
     if (chinaSymbol) {
       const [{ provider, bars }, info] = await Promise.all([
         fetchChinaHistory(chinaSymbol),
@@ -1261,7 +1335,7 @@ module.exports = async function handler(req, res) {
       const qualitativeSignals = buildQualitativeSignals(metrics);
       const industryOutlook = await buildChinaIndustryOutlook(chinaSymbol, info, metrics);
       const earningsInflection = buildChinaEarningsInflection();
-      const sentimentDiffusion = buildSentimentDiffusion(metrics, industryOutlook, earningsInflection);
+      const sentimentDiffusion = buildSentimentDiffusion(metrics, industryOutlook, earningsInflection, "CN");
       const composite = buildCompositeScore(score, industryOutlook, earningsInflection, sentimentDiffusion);
 
       res.status(200).json({
@@ -1314,7 +1388,7 @@ module.exports = async function handler(req, res) {
     const qualitativeSignals = buildQualitativeSignals(metrics);
     const industryOutlook = await buildIndustryOutlook(symbol, info, metrics);
     const earningsInflection = await buildEarningsInflection(symbol);
-    const sentimentDiffusion = buildSentimentDiffusion(metrics, industryOutlook, earningsInflection);
+    const sentimentDiffusion = buildSentimentDiffusion(metrics, industryOutlook, earningsInflection, "US");
     const composite = buildCompositeScore(score, industryOutlook, earningsInflection, sentimentDiffusion);
 
     res.status(200).json({
